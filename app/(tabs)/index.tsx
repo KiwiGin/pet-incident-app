@@ -93,13 +93,13 @@ export default function HomeScreen() {
   };
 
   const handleLocationPress = () => {
-    console.log('Location button pressed');
     toggleFab();
+    router.push('/incidents-map');
   };
 
   const handleReportPress = () => {
-    console.log('Report (paw) button pressed');
     toggleFab();
+    router.push('/create-incident');
   };
 
   const rotation = fabAnimation.interpolate({

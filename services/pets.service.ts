@@ -9,9 +9,9 @@ const MOCK_PETS: Pet[] = [
     description: 'El otro día cuando salimos a pasear, se asustó y salió corriendo. Si alguien lo ha visto necesito que se contacte conmigo por favor!',
     status: 'lost',
     location: {
-      latitude: -12.0464,
-      longitude: -77.0428,
-      address: 'Miraflores, Lima'
+      latitude: -12.088284,
+      longitude: -77.073992,
+      address: 'Jirón Ayacucho 750, Magdalena del Mar, Lima'
     },
     reportedBy: '1',
     reportedAt: new Date('2024-01-15'),
@@ -25,8 +25,8 @@ const MOCK_PETS: Pet[] = [
     description: 'El otro día cuando salimos a pasear, se asustó y salió corriendo. Si alguien lo ha visto necesito que se contacte conmigo por favor!',
     status: 'lost',
     location: {
-      latitude: -12.0464,
-      longitude: -77.0428,
+      latitude: -12.086195,
+      longitude: -77.052352,
       address: 'San Isidro, Lima'
     },
     reportedBy: 'user2',
