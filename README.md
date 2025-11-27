@@ -1,50 +1,95 @@
-# Welcome to your Expo app 👋
+# Pet Incident App
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+App de gestión de incidentes de mascotas construida con React Native, Expo y TypeScript.
 
-## Get started
+## Stack Tecnológico
 
-1. Install dependencies
+- **React Native**: Framework para desarrollo móvil
+- **Expo**: Plataforma de desarrollo
+- **TypeScript**: Tipado estático
+- **Expo Router**: Navegación basada en archivos
+- **Context API**: Manejo de estado global
 
-   ```bash
-   npm install
-   ```
+## Estructura del Proyecto
 
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+pet-incident-app/
+├── app/                      # Pantallas de la aplicación (Expo Router)
+│   ├── (tabs)/              # Pantallas con tabs
+│   ├── login.tsx            # Pantalla de login
+│   ├── signup.tsx           # Pantalla de registro
+│   └── _layout.tsx          # Layout principal
+├── components/              # Componentes reutilizables
+│   ├── InputBasic/          # Input personalizado
+│   ├── ButtonBasic/         # Botón personalizado
+│   └── TextBasic/           # Texto personalizado
+├── contexts/                # Contextos de React
+│   └── AuthContext.tsx      # Contexto de autenticación
+├── screens/                 # Pantallas de la app
+│   ├── Login/               # Pantalla de login
+│   └── Signup/              # Pantalla de registro
+├── services/                # Servicios y API
+│   └── auth.service.ts      # Servicio de autenticación (con mocks)
+├── types/                   # Tipos de TypeScript
+│   └── index.ts             # Tipos compartidos
+└── assets/                  # Recursos (imágenes, fuentes, etc.)
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Características Implementadas
 
-## Learn more
+### Autenticación
+- Login con email y contraseña
+- Registro de nuevos usuarios
+- Logout
+- Validación de formularios
+- Manejo de errores
 
-To learn more about developing your project with Expo, look at the following resources:
+### Componentes Base
+- **InputBasic**: Input con soporte para contraseñas (con toggle de visibilidad)
+- **ButtonBasic**: Botón con variantes (primary, secondary, ghost) y estados de carga
+- **TextBasic**: Texto con diferentes variantes (title, subtitle, body, caption)
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+### Navegación
+- Navegación basada en archivos con Expo Router
+- Protección de rutas basada en autenticación
+- Redirección automática según estado de login
 
-## Join the community
+## Datos Mock
 
-Join our community of developers creating universal apps.
+Por el momento, la app usa datos mock para simular la autenticación. El servicio en `services/auth.service.ts` simula:
+- Delay de red (1000ms para login/signup, 500ms para logout)
+- Validación de credenciales
+- Almacenamiento en memoria de usuarios registrados
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+### Usuario de prueba:
+- Email: `demo@example.com`
+- Password: `password123`
+
+## Instalación y Ejecución
+
+```bash
+# Instalar dependencias
+npm install
+
+# Iniciar el servidor de desarrollo
+npm start
+
+# Ejecutar en Android
+npm run android
+
+# Ejecutar en iOS
+npm run ios
+```
+
+## Próximos Pasos (Backend Integration)
+
+Cuando el backend esté listo, necesitarás actualizar:
+
+1. **`services/auth.service.ts`**: Reemplazar las funciones mock con llamadas HTTP reales
+2. **Token Storage**: Implementar almacenamiento seguro de tokens (AsyncStorage o SecureStore)
+3. **Interceptores**: Agregar interceptores para manejar tokens en las peticiones
+4. **Refresh Tokens**: Implementar renovación automática de tokens
+
+## Diseño
+
+Figma: https://www.figma.com/design/1SnrJsRJDLB3neZYgFNYfp/Prototipos?node-id=202-2&p=f&t=3PJBca6loHXTlOEs-0

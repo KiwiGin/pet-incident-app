@@ -1,0 +1,1 @@
+export { PetCardComponent } from './PetCardComponent';
