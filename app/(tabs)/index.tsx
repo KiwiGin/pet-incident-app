@@ -7,7 +7,7 @@ import { petsService } from '@/services/pets.service';
 import { Pet } from '@/types';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -26,6 +26,9 @@ export default function HomeScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isFabOpen, setIsFabOpen] = useState(false);
   const [fabAnimation] = useState(new Animated.Value(0));
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -37,48 +40,122 @@ export default function HomeScreen() {
     loadPets();
   }, []);
 
-  const loadPets = async () => {
+  const loadPets = async (page: number = 1) => {
     try {
-      setIsLoading(true);
-      const lostPets = await petsService.getLostPets();
-      setPets(lostPets);
+      if (page === 1) {
+        setIsLoading(true);
+      } else {
+        setIsLoadingMore(true);
+      }
+
+      const lostPets = await petsService.getLostPets(page);
+      const totalCount = await petsService.getTotalLostPetsCount();
+
+      if (page === 1) {
+        setPets(lostPets);
+        setHasMore(lostPets.length < totalCount);
+      } else {
+        setPets(prevPets => {
+          const newPets = [...prevPets, ...lostPets];
+          setHasMore(newPets.length < totalCount);
+          return newPets;
+        });
+      }
+
+      setCurrentPage(page);
     } catch (error) {
       console.error('Error loading pets:', error);
     } finally {
       setIsLoading(false);
+      setIsLoadingMore(false);
     }
   };
 
-  const handleSearch = async (query: string) => {
+  const handleSearch = async (query: string, page: number = 1) => {
     setSearchQuery(query);
     if (query.trim()) {
       try {
-        const results = await petsService.searchPets(query);
-        setPets(results);
+        if (page === 1) {
+          setIsLoading(true);
+        } else {
+          setIsLoadingMore(true);
+        }
+
+        const results = await petsService.searchPets(query, page);
+        const totalCount = await petsService.getSearchPetsCount(query);
+
+        if (page === 1) {
+          setPets(results);
+          setHasMore(results.length < totalCount);
+        } else {
+          setPets(prevPets => {
+            const newPets = [...prevPets, ...results];
+            setHasMore(newPets.length < totalCount);
+            return newPets;
+          });
+        }
+
+        setCurrentPage(page);
       } catch (error) {
         console.error('Error searching pets:', error);
+      } finally {
+        setIsLoading(false);
+        setIsLoadingMore(false);
       }
     } else {
-      loadPets();
+      setHasMore(true);
+      loadPets(1);
     }
   };
 
-  const handleToggleFavorite = async (petId: string) => {
+  const handleLoadMore = () => {
+    if (!isLoadingMore && hasMore) {
+      if (searchQuery.trim()) {
+        handleSearch(searchQuery, currentPage + 1);
+      } else {
+        loadPets(currentPage + 1);
+      }
+    }
+  };
+
+  const handleToggleFavorite = useCallback(async (petId: string) => {
+    // Optimistic update - update UI immediately
+    setPets(prevPets =>
+      prevPets.map(pet =>
+        pet.id === petId ? { ...pet, isFavorite: !pet.isFavorite } : pet
+      )
+    );
+
+    // Then update the service
     try {
       await petsService.toggleFavorite(petId);
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+      // Revert on error
       setPets(prevPets =>
         prevPets.map(pet =>
           pet.id === petId ? { ...pet, isFavorite: !pet.isFavorite } : pet
         )
       );
-    } catch (error) {
-      console.error('Error toggling favorite:', error);
     }
-  };
+  }, []);
 
   const handleNearMe = () => {
     console.log('Near me clicked');
   };
+
+  const renderPetCard = useCallback(({ item }: { item: Pet }) => (
+    <PetCardComponent
+      pet={item}
+      onPress={() => router.push({
+        pathname: '/pet-detail/[id]',
+        params: { id: item.id }
+      })}
+      onToggleFavorite={handleToggleFavorite}
+    />
+  ), [router, handleToggleFavorite]);
+
+  const keyExtractor = useCallback((item: Pet) => item.id, []);
 
   const toggleFab = () => {
     const toValue = isFabOpen ? 0 : 1;
@@ -157,15 +234,20 @@ export default function HomeScreen() {
       ) : (
         <FlatList
           data={pets}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <PetCardComponent
-              pet={item}
-              onToggleFavorite={handleToggleFavorite}
-            />
-          )}
+          keyExtractor={keyExtractor}
+          renderItem={renderPetCard}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
+            isLoadingMore ? (
+              <View style={styles.footerLoader}>
+                <ActivityIndicator size="small" color="#C8E64D" />
+                <TextBasic style={styles.loadingText}>Cargando más...</TextBasic>
+              </View>
+            ) : null
+          }
         />
       )}
 
@@ -275,6 +357,15 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 20,
     paddingBottom: 100,
+  },
+  footerLoader: {
+    paddingVertical: 20,
+    alignItems: 'center',
+    gap: 8,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#AAA',
   },
   overlay: {
     position: 'absolute',

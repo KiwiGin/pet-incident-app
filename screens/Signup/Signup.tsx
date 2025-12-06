@@ -1,18 +1,18 @@
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  View,
-  ImageBackground,
-  TouchableOpacity,
   Alert,
+  Image,
+  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Image,
-  StyleSheet
+  StyleSheet,
+  TouchableOpacity,
+  View
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import { InputBasic } from '../../components/InputBasic';
 import { ButtonBasic } from '../../components/ButtonBasic';
+import { InputBasic } from '../../components/InputBasic';
 import { TextBasic } from '../../components/TextBasic';
 import { useAuth } from '../../contexts/AuthContext';
 

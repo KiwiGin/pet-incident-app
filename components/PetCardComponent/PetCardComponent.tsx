@@ -11,12 +11,16 @@ interface PetCardComponentProps {
   showFavorite?: boolean;
 }
 
-export function PetCardComponent({
+function PetCardComponentBase({
   pet,
   onPress,
   onToggleFavorite,
   showFavorite = true
 }: PetCardComponentProps) {
+  const handleFavoritePress = React.useCallback(() => {
+    onToggleFavorite?.(pet.id);
+  }, [onToggleFavorite, pet.id]);
+
   return (
     <TouchableOpacity
       style={styles.container}
@@ -45,7 +49,7 @@ export function PetCardComponent({
       {showFavorite && (
         <TouchableOpacity
           style={styles.favoriteButton}
-          onPress={() => onToggleFavorite?.(pet.id)}
+          onPress={handleFavoritePress}
         >
           <View style={styles.favoriteCircle}>
             <Ionicons
@@ -59,6 +63,14 @@ export function PetCardComponent({
     </TouchableOpacity>
   );
 }
+
+export const PetCardComponent = React.memo(PetCardComponentBase, (prevProps, nextProps) => {
+  return (
+    prevProps.pet.id === nextProps.pet.id &&
+    prevProps.pet.isFavorite === nextProps.pet.isFavorite &&
+    prevProps.showFavorite === nextProps.showFavorite
+  );
+});
 
 const styles = StyleSheet.create({
   container: {

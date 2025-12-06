@@ -25,6 +25,7 @@ export default function RootLayout() {
             <Stack.Screen name="create-incident" options={{ headerShown: false }} />
             <Stack.Screen name="location-picker" options={{ headerShown: false }} />
             <Stack.Screen name="incidents-map" options={{ headerShown: false }} />
+            <Stack.Screen name="pet-detail/[id]" options={{ headerShown: false }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
           </Stack>
           <StatusBar style="light" />

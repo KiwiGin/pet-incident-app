@@ -26,7 +26,6 @@ export default function IncidentsMapScreen() {
   const router = useRouter();
   const mapRef = useRef<MapView>(null);
 
-  const [lostPets, setLostPets] = useState<Pet[]>([]);
   const [adoptionPets, setAdoptionPets] = useState<Pet[]>([]);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [nearbyPets, setNearbyPets] = useState<ProximityAlert[]>([]);
@@ -99,7 +98,6 @@ export default function IncidentsMapScreen() {
       const lostWithLocation = lost.filter(pet => pet.location);
       const adoptionWithLocation = adoption.filter(pet => pet.location);
 
-      setLostPets(lostWithLocation);
       setAdoptionPets(adoptionWithLocation);
 
       // Start BLE simulation for lost pets only
@@ -108,8 +106,7 @@ export default function IncidentsMapScreen() {
           lostWithLocation,
           userLocation,
           (updatedPets) => {
-            setLostPets(updatedPets);
-            // Update nearby pets
+            // Update nearby pets based on current position
             const nearby = bleSimulationService.getNearbyPets(userLocation, updatedPets);
             setNearbyPets(nearby);
           },
@@ -169,13 +166,18 @@ export default function IncidentsMapScreen() {
   };
 
   const handleMarkerPress = (pet: Pet) => {
-    // TODO: Navigate to pet detail screen or show bottom sheet
     Alert.alert(
       pet.name,
       `${pet.status === 'lost' ? 'Perdido' : 'En adopción'}\n${pet.description}`,
       [
         { text: 'Cerrar', style: 'cancel' },
-        { text: 'Ver detalles', onPress: () => console.log('Ver detalles:', pet.id) },
+        {
+          text: 'Ver detalles',
+          onPress: () => router.push({
+            pathname: '/pet-detail/[id]',
+            params: { id: pet.id }
+          })
+        },
       ]
     );
   };
@@ -225,12 +227,10 @@ export default function IncidentsMapScreen() {
             />
           )}
 
-          {/* Lost pets (moving in real-time) */}
-          {lostPets.map((pet) => {
+          {/* Lost pets (moving in real-time) - Only show if within detection radius */}
+          {nearbyPets.map((alert) => {
+            const pet = alert.pet;
             if (!pet.location) return null;
-
-            // Check if pet is nearby
-            const isNearby = nearbyPets.some(n => n.pet.id === pet.id);
 
             return (
               <Marker
@@ -246,7 +246,7 @@ export default function IncidentsMapScreen() {
                     styles.markerContainer,
                     {
                       borderColor: '#FF4444',
-                      transform: isNearby ? [{ scale: pulseAnim }] : [],
+                      transform: [{ scale: pulseAnim }],
                     },
                   ]}
                 >
@@ -254,11 +254,9 @@ export default function IncidentsMapScreen() {
                     source={{ uri: pet.image }}
                     style={styles.markerImage}
                   />
-                  {isNearby && (
-                    <View style={styles.nearbyIndicator}>
-                      <Ionicons name="radio" size={12} color="#FFD700" />
-                    </View>
-                  )}
+                  <View style={styles.nearbyIndicator}>
+                    <Ionicons name="radio" size={12} color="#FFD700" />
+                  </View>
                 </Animated.View>
               </Marker>
             );
