@@ -11,8 +11,17 @@ const getApiUrl = () => {
     if (Platform.OS === 'android') {
       return 'http://10.0.2.2:5000/api';
     }
-    // iOS or web
-    return 'http://localhost:5000/api';
+
+    // iOS - IMPORTANT: Change this based on your setup
+    // For iOS Simulator: use 'localhost'
+    // For iOS Physical Device: use your computer's IP address (find it with 'ipconfig' on Windows or 'ifconfig' on Mac)
+
+    // OPTION 1: Uncomment this line if using iOS Simulator
+    // return 'http://localhost:5000/api';
+
+    // OPTION 2: Use this for iOS Physical Device
+    // Replace 'YOUR_COMPUTER_IP' with your actual IP address (e.g., 192.168.1.100)
+    return 'http://192.168.100.14:5000/api';
   }
 
   // Production mode - replace with your production API URL

@@ -3,13 +3,14 @@ import { PetCardComponent } from '@/components/PetCardComponent';
 import { SearchBarComponent } from '@/components/SearchBarComponent';
 import { TextBasic } from '@/components/TextBasic';
 import { useAuth } from '@/contexts/AuthContext';
-import { petsService } from '@/services/pets.service';
-import { Pet } from '@/types';
+import { incidentsService } from '@/services/incidents.service';
+import { Incident } from '@/types';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   FlatList,
   StyleSheet,
@@ -17,11 +18,12 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Location from 'expo-location';
 
 export default function HomeScreen() {
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
-  const [pets, setPets] = useState<Pet[]>([]);
+  const [pets, setPets] = useState<Incident[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isFabOpen, setIsFabOpen] = useState(false);
@@ -29,6 +31,8 @@ export default function HomeScreen() {
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [isNearbyMode, setIsNearbyMode] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -48,23 +52,23 @@ export default function HomeScreen() {
         setIsLoadingMore(true);
       }
 
-      const lostPets = await petsService.getLostPets(page);
-      const totalCount = await petsService.getTotalLostPetsCount();
+      const response = await incidentsService.getLostPets({
+        page,
+        limit: 10,
+      });
 
       if (page === 1) {
-        setPets(lostPets);
-        setHasMore(lostPets.length < totalCount);
+        setPets(response.pets);
+        setHasMore(response.pagination.hasMore);
       } else {
-        setPets(prevPets => {
-          const newPets = [...prevPets, ...lostPets];
-          setHasMore(newPets.length < totalCount);
-          return newPets;
-        });
+        setPets(prevPets => [...prevPets, ...response.pets]);
+        setHasMore(response.pagination.hasMore);
       }
 
       setCurrentPage(page);
     } catch (error) {
       console.error('Error loading pets:', error);
+      Alert.alert('Error', 'No se pudieron cargar las mascotas perdidas');
     } finally {
       setIsLoading(false);
       setIsLoadingMore(false);
@@ -73,6 +77,8 @@ export default function HomeScreen() {
 
   const handleSearch = async (query: string, page: number = 1) => {
     setSearchQuery(query);
+    setIsNearbyMode(false); // Exit nearby mode when searching
+
     if (query.trim()) {
       try {
         if (page === 1) {
@@ -81,23 +87,24 @@ export default function HomeScreen() {
           setIsLoadingMore(true);
         }
 
-        const results = await petsService.searchPets(query, page);
-        const totalCount = await petsService.getSearchPetsCount(query);
+        const response = await incidentsService.getLostPets({
+          page,
+          limit: 10,
+          petName: query,
+        });
 
         if (page === 1) {
-          setPets(results);
-          setHasMore(results.length < totalCount);
+          setPets(response.pets);
+          setHasMore(response.pagination.hasMore);
         } else {
-          setPets(prevPets => {
-            const newPets = [...prevPets, ...results];
-            setHasMore(newPets.length < totalCount);
-            return newPets;
-          });
+          setPets(prevPets => [...prevPets, ...response.pets]);
+          setHasMore(response.pagination.hasMore);
         }
 
         setCurrentPage(page);
       } catch (error) {
         console.error('Error searching pets:', error);
+        Alert.alert('Error', 'No se pudieron buscar las mascotas');
       } finally {
         setIsLoading(false);
         setIsLoadingMore(false);
@@ -109,7 +116,8 @@ export default function HomeScreen() {
   };
 
   const handleLoadMore = () => {
-    if (!isLoadingMore && hasMore) {
+    // Don't load more in nearby mode (not paginated)
+    if (!isLoadingMore && hasMore && !isNearbyMode) {
       if (searchQuery.trim()) {
         handleSearch(searchQuery, currentPage + 1);
       } else {
@@ -119,43 +127,71 @@ export default function HomeScreen() {
   };
 
   const handleToggleFavorite = useCallback(async (petId: string) => {
+    // Note: Backend doesn't have favorites yet, but keeping UI interaction
     // Optimistic update - update UI immediately
     setPets(prevPets =>
       prevPets.map(pet =>
-        pet.id === petId ? { ...pet, isFavorite: !pet.isFavorite } : pet
+        pet._id === petId ? { ...pet, isFavorite: !pet.isFavorite } : pet
       )
     );
 
-    // Then update the service
-    try {
-      await petsService.toggleFavorite(petId);
-    } catch (error) {
-      console.error('Error toggling favorite:', error);
-      // Revert on error
-      setPets(prevPets =>
-        prevPets.map(pet =>
-          pet.id === petId ? { ...pet, isFavorite: !pet.isFavorite } : pet
-        )
-      );
-    }
+    // TODO: Implement backend favorites endpoint
+    // For now, just update UI state
   }, []);
 
-  const handleNearMe = () => {
-    console.log('Near me clicked');
+  const handleNearMe = async () => {
+    try {
+      // Request location permissions
+      const { status } = await Location.requestForegroundPermissionsAsync();
+
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permiso denegado',
+          'Se necesita permiso de ubicación para buscar mascotas cerca de ti'
+        );
+        return;
+      }
+
+      setIsLoading(true);
+      setSearchQuery(''); // Clear search when using nearby
+      setIsNearbyMode(true);
+
+      // Get current location
+      const location = await Location.getCurrentPositionAsync({});
+      const { latitude, longitude } = location.coords;
+      setUserLocation({ latitude, longitude });
+
+      // Load nearby pets (500m radius - BLE detection range)
+      const nearbyPets = await incidentsService.getNearbyLostPets({
+        latitude,
+        longitude,
+        radius: 500, // 500 meters - realistic BLE range
+      });
+
+      setPets(nearbyPets);
+      setHasMore(false); // Nearby search doesn't support pagination
+      setCurrentPage(1);
+    } catch (error) {
+      console.error('Error loading nearby pets:', error);
+      Alert.alert('Error', 'No se pudieron cargar las mascotas cercanas');
+      setIsNearbyMode(false);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const renderPetCard = useCallback(({ item }: { item: Pet }) => (
+  const renderPetCard = useCallback(({ item }: { item: Incident }) => (
     <PetCardComponent
       pet={item}
       onPress={() => router.push({
         pathname: '/pet-detail/[id]',
-        params: { id: item.id }
+        params: { id: item._id }
       })}
       onToggleFavorite={handleToggleFavorite}
     />
   ), [router, handleToggleFavorite]);
 
-  const keyExtractor = useCallback((item: Pet) => item.id, []);
+  const keyExtractor = useCallback((item: Incident) => item._id, []);
 
   const toggleFab = () => {
     const toValue = isFabOpen ? 0 : 1;

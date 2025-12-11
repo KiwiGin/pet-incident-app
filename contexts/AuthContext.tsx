@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { AuthContextType, User, LoginCredentials, SignupData } from '../types';
 import { authService } from '../services/auth.service';
-import { AuthContextType, LoginCredentials, SignupData, User } from '../types';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -27,8 +27,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (credentials: LoginCredentials) => {
     setIsLoading(true);
     try {
-      const userData = await authService.login(credentials);
-      setUser(userData);
+      const { user } = await authService.login(credentials);
+      setUser(user);
     } catch (error) {
       throw error;
     } finally {
@@ -39,8 +39,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signup = async (data: SignupData) => {
     setIsLoading(true);
     try {
-      const userData = await authService.signup(data);
-      setUser(userData);
+      const { user } = await authService.signup(data);
+      setUser(user);
     } catch (error) {
       throw error;
     } finally {

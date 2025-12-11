@@ -1,24 +1,25 @@
-import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  Alert,
-  Image,
+  View,
   ImageBackground,
+  TouchableOpacity,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  StyleSheet,
-  TouchableOpacity,
-  View
+  Image,
+  StyleSheet
 } from 'react-native';
-import { ButtonBasic } from '../../components/ButtonBasic';
+import { useRouter } from 'expo-router';
 import { InputBasic } from '../../components/InputBasic';
+import { ButtonBasic } from '../../components/ButtonBasic';
 import { TextBasic } from '../../components/TextBasic';
 import { useAuth } from '../../contexts/AuthContext';
 
 export function Signup() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const { signup, isLoading } = useAuth();
@@ -26,7 +27,7 @@ export function Signup() {
 
   const handleSignup = async () => {
     if (!name || !email || !password || !confirmPassword) {
-      Alert.alert('Error', 'Please fill in all fields');
+      Alert.alert('Error', 'Please fill in all required fields');
       return;
     }
 
@@ -41,7 +42,7 @@ export function Signup() {
     }
 
     try {
-      await signup({ name, email, password });
+      await signup({ name, email, password, phone });
       router.replace('/(tabs)');
     } catch (error) {
       Alert.alert(
@@ -87,6 +88,13 @@ export function Signup() {
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
+              />
+
+              <InputBasic
+                placeholder="Phone (optional)"
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
               />
 
               <InputBasic

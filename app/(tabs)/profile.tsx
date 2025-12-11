@@ -70,7 +70,7 @@ export default function ProfileScreen() {
                 <Ionicons name="call" size={20} color="#C8E64D" />
                 <TextBasic style={styles.fieldLabel}>Phone Mobile</TextBasic>
               </View>
-              <TextBasic style={styles.fieldValue}>+51 987 654 321</TextBasic>
+              <TextBasic style={styles.fieldValue}>{user.phone}</TextBasic>
             </View>
 
             <View style={styles.fieldContainer}>

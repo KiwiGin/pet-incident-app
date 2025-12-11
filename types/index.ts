@@ -3,6 +3,7 @@ export interface User {
   email: string;
   name: string;
   avatar?: string;
+  phone: string;
 }
 
 export interface LoginCredentials {
@@ -14,6 +15,7 @@ export interface SignupData {
   name: string;
   email: string;
   password: string;
+  phone?: string;
 }
 
 export interface AuthContextType {
@@ -41,4 +43,58 @@ export interface Pet {
   isFavorite?: boolean;
   age?: string;
   gender?: 'male' | 'female';
+}
+
+// Backend Incident type (from real API)
+export interface Incident {
+  _id: string;
+  userId: string;
+  incidentType: 'lost' | 'adoption';
+  petName: string;
+  petType: 'dog' | 'cat' | 'other';
+  breed?: string;
+  description: string;
+  imageUrls: string[];
+  location: {
+    type: 'Point';
+    coordinates: [number, number]; // [longitude, latitude]
+  };
+  locationName: string;
+  contactPhone: string;
+  contactEmail: string;
+  status: 'active' | 'resolved' | 'closed';
+  user?: {
+    _id: string;
+    fullName: string;
+    phone: string;
+    email?: string;
+    photoURL?: string;
+  };
+  distance?: number; // Only in nearby searches
+  createdAt: string;
+  updatedAt: string;
+  isFavorite?: boolean; // UI only field
+}
+
+export interface CreateIncidentData {
+  incidentType: 'lost' | 'adoption';
+  petName: string;
+  petType: 'dog' | 'cat' | 'other';
+  breed?: string;
+  description: string;
+  imageUrls: string[];
+  latitude: number;
+  longitude: number;
+  locationName: string;
+  contactPhone: string;
+  contactEmail: string;
+}
+
+export interface UpdateIncidentData {
+  petName?: string;
+  description?: string;
+  status?: 'active' | 'resolved' | 'closed';
+  latitude?: number;
+  longitude?: number;
+  locationName?: string;
 }

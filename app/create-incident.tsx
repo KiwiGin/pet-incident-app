@@ -5,11 +5,14 @@ import { TextAreaBasic } from '@/components/TextAreaBasic';
 import { TextBasic } from '@/components/TextBasic';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocation } from '@/contexts/LocationContext';
+import { incidentsService } from '@/services/incidents.service';
+import { uploadService } from '@/services/upload.service';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Image,
   ScrollView,
@@ -20,15 +23,23 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type IncidentType = 'lost' | 'adoption';
+type PetType = 'dog' | 'cat' | 'other';
 
 export default function CreateIncidentScreen() {
   const { user } = useAuth();
   const { selectedLocation, setSelectedLocation } = useLocation();
   const router = useRouter();
-  const [title, setTitle] = useState('');
+
+  // Form fields matching API requirements
+  const [petName, setPetName] = useState('');
+  const [petType, setPetType] = useState<PetType>('dog');
+  const [breed, setBreed] = useState('');
   const [description, setDescription] = useState('');
   const [incidentType, setIncidentType] = useState<IncidentType>('lost');
-  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [imageUris, setImageUris] = useState<string[]>([]);
+  const [contactPhone, setContactPhone] = useState(user?.phone || '');
+  const [contactEmail, setContactEmail] = useState(user?.email || '');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     // Clean up location when component unmounts
@@ -48,6 +59,11 @@ export default function CreateIncidentScreen() {
   };
 
   const handleImagePicker = () => {
+    if (imageUris.length >= 3) {
+      Alert.alert('Límite alcanzado', 'Puedes agregar hasta 3 imágenes');
+      return;
+    }
+
     Alert.alert(
       'Seleccionar imagen',
       '¿Cómo deseas agregar la foto?',
@@ -68,7 +84,7 @@ export default function CreateIncidentScreen() {
             });
 
             if (!result.canceled) {
-              setImageUri(result.assets[0].uri);
+              setImageUris(prev => [...prev, result.assets[0].uri]);
             }
           },
         },
@@ -89,10 +105,27 @@ export default function CreateIncidentScreen() {
             });
 
             if (!result.canceled) {
-              setImageUri(result.assets[0].uri);
+              setImageUris(prev => [...prev, result.assets[0].uri]);
             }
           },
         },
+        { text: 'Cancelar', style: 'cancel' },
+      ]
+    );
+  };
+
+  const handleRemoveImage = (index: number) => {
+    setImageUris(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handlePetTypeSelector = () => {
+    Alert.alert(
+      'Tipo de mascota',
+      'Seleccione el tipo de mascota',
+      [
+        { text: 'Perro', onPress: () => setPetType('dog') },
+        { text: 'Gato', onPress: () => setPetType('cat') },
+        { text: 'Otro', onPress: () => setPetType('other') },
         { text: 'Cancelar', style: 'cancel' },
       ]
     );
@@ -114,9 +147,10 @@ export default function CreateIncidentScreen() {
     router.push('/location-picker');
   };
 
-  const handleCreateIncident = () => {
-    if (!title.trim()) {
-      Alert.alert('Error', 'Por favor ingresa un título');
+  const handleCreateIncident = async () => {
+    // Validations
+    if (!petName.trim()) {
+      Alert.alert('Error', 'Por favor ingresa el nombre de la mascota');
       return;
     }
 
@@ -125,19 +159,74 @@ export default function CreateIncidentScreen() {
       return;
     }
 
-    if (!imageUri) {
-      Alert.alert('Error', 'Por favor agrega una foto');
+    if (imageUris.length === 0) {
+      Alert.alert('Error', 'Por favor agrega al menos una foto');
       return;
     }
 
-    // TODO: Implement create incident logic
-    Alert.alert('Éxito', 'Incidencia creada correctamente', [
-      { text: 'OK', onPress: () => router.back() },
-    ]);
+    if (!selectedLocation) {
+      Alert.alert('Error', 'Por favor selecciona una ubicación en el mapa');
+      return;
+    }
+
+    if (!contactPhone.trim()) {
+      Alert.alert('Error', 'Por favor ingresa un número de contacto');
+      return;
+    }
+
+    if (!contactEmail.trim()) {
+      Alert.alert('Error', 'Por favor ingresa un email de contacto');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+
+      // Step 1: Upload images to Cloudinary
+      const uploadedUrls = await uploadService.uploadMultiple(imageUris);
+
+      // Step 2: Create incident
+      await incidentsService.createIncident({
+        incidentType,
+        petName: petName.trim(),
+        petType,
+        breed: breed.trim() || undefined,
+        description: description.trim(),
+        imageUrls: uploadedUrls,
+        latitude: selectedLocation.latitude,
+        longitude: selectedLocation.longitude,
+        locationName: selectedLocation.address || 'Ubicación desconocida',
+        contactPhone: contactPhone.trim(),
+        contactEmail: contactEmail.trim(),
+      });
+
+      Alert.alert('Éxito', 'Incidencia creada correctamente', [
+        {
+          text: 'OK',
+          onPress: () => {
+            setSelectedLocation(null);
+            router.back();
+          },
+        },
+      ]);
+    } catch (error) {
+      console.error('Error creating incident:', error);
+      Alert.alert(
+        'Error',
+        error instanceof Error ? error.message : 'No se pudo crear la incidencia'
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const getTypeText = () => {
     return incidentType === 'lost' ? 'Pérdida' : 'Adopción';
+  };
+
+  const getPetTypeText = () => {
+    const types = { dog: 'Perro', cat: 'Gato', other: 'Otro' };
+    return types[petType];
   };
 
   return (
@@ -176,20 +265,58 @@ export default function CreateIncidentScreen() {
             onPress={handleImagePicker}
             activeOpacity={0.8}
           >
-            {imageUri ? (
-              <Image source={{ uri: imageUri }} style={styles.cameraImage} />
+            {imageUris.length > 0 ? (
+              <Image source={{ uri: imageUris[0] }} style={styles.cameraImage} />
             ) : (
               <Ionicons name="camera" size={40} color="#C8E64D" />
             )}
           </TouchableOpacity>
+
+          {/* Additional images preview */}
+          {imageUris.length > 0 && (
+            <View style={styles.imagePreviewContainer}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {imageUris.map((uri, index) => (
+                  <View key={index} style={styles.imagePreview}>
+                    <Image source={{ uri }} style={styles.previewImage} />
+                    <TouchableOpacity
+                      style={styles.removeImageButton}
+                      onPress={() => handleRemoveImage(index)}
+                    >
+                      <Ionicons name="close-circle" size={24} color="#FF4444" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                {imageUris.length < 3 && (
+                  <TouchableOpacity
+                    style={styles.addMoreButton}
+                    onPress={handleImagePicker}
+                  >
+                    <Ionicons name="add" size={30} color="#C8E64D" />
+                  </TouchableOpacity>
+                )}
+              </ScrollView>
+            </View>
+          )}
         </View>
 
         {/* Form */}
         <View style={styles.form}>
           <InputBasic
-            placeholder="Title"
-            value={title}
-            onChangeText={setTitle}
+            placeholder="Nombre de la mascota"
+            value={petName}
+            onChangeText={setPetName}
+          />
+
+          <SelectorBasic
+            value={`Tipo de mascota: ${getPetTypeText()}`}
+            onPress={handlePetTypeSelector}
+          />
+
+          <InputBasic
+            placeholder="Raza (opcional)"
+            value={breed}
+            onChangeText={setBreed}
           />
 
           <TextAreaBasic
@@ -214,12 +341,37 @@ export default function CreateIncidentScreen() {
             onPress={handleTypeSelector}
           />
 
+          <InputBasic
+            placeholder="Teléfono de contacto"
+            value={contactPhone}
+            onChangeText={setContactPhone}
+            keyboardType="phone-pad"
+          />
+
+          <InputBasic
+            placeholder="Email de contacto"
+            value={contactEmail}
+            onChangeText={setContactEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+
           <ButtonBasic
-            title="Crear incidencia"
+            title={isSubmitting ? "Creando..." : "Crear incidencia"}
             onPress={handleCreateIncident}
             variant="primary"
             style={styles.createButton}
+            disabled={isSubmitting}
           />
+
+          {isSubmitting && (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#C8E64D" />
+              <TextBasic style={styles.loadingText}>
+                Subiendo imágenes y creando incidencia...
+              </TextBasic>
+            </View>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -304,5 +456,47 @@ const styles = StyleSheet.create({
   },
   createButton: {
     marginTop: 20,
+  },
+  imagePreviewContainer: {
+    marginTop: 15,
+    paddingHorizontal: 20,
+  },
+  imagePreview: {
+    width: 80,
+    height: 80,
+    marginRight: 10,
+    borderRadius: 10,
+    position: 'relative',
+  },
+  previewImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 10,
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: '#000',
+    borderRadius: 12,
+  },
+  addMoreButton: {
+    width: 80,
+    height: 80,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#C8E64D',
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingContainer: {
+    marginTop: 20,
+    alignItems: 'center',
+    gap: 10,
+  },
+  loadingText: {
+    color: '#AAA',
+    fontSize: 14,
   },
 });

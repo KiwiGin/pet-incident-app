@@ -1,21 +1,23 @@
 import { ButtonBasic } from '@/components/ButtonBasic';
 import { TextBasic } from '@/components/TextBasic';
-import { petsService } from '@/services/pets.service';
-import { Pet } from '@/types';
+import { incidentsService } from '@/services/incidents.service';
+import { Incident } from '@/types';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
+  Dimensions,
   Image,
+  Linking,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  View,
-  Dimensions
+  View
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker } from 'react-native-maps';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
@@ -25,9 +27,10 @@ export default function PetDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
 
-  const [pet, setPet] = useState<Pet | null>(null);
+  const [pet, setPet] = useState<Incident | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>('description');
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   useEffect(() => {
     loadPetDetails();
@@ -36,10 +39,11 @@ export default function PetDetailScreen() {
   const loadPetDetails = async () => {
     try {
       setIsLoading(true);
-      const petData = await petsService.getPetById(id);
+      const petData = await incidentsService.getIncidentById(id);
       setPet(petData);
     } catch (error) {
       console.error('Error loading pet details:', error);
+      Alert.alert('Error', 'No se pudieron cargar los detalles de la mascota');
     } finally {
       setIsLoading(false);
     }
@@ -50,11 +54,10 @@ export default function PetDetailScreen() {
 
     const config = {
       lost: { text: 'Lost', color: '#FF4444' },
-      found: { text: 'Found', color: '#44FF88' },
       adoption: { text: 'Adoption', color: '#44FF88' },
     };
 
-    const badge = config[pet.status];
+    const badge = config[pet.incidentType];
 
     return (
       <View style={[styles.statusBadge, { backgroundColor: badge.color }]}>
@@ -65,12 +68,32 @@ export default function PetDetailScreen() {
     );
   };
 
-  const formatDate = (date: Date) => {
+  const formatDate = (dateString: string) => {
     return new Intl.DateTimeFormat('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
-    }).format(date);
+    }).format(new Date(dateString));
+  };
+
+  const handleContact = () => {
+    if (!pet) return;
+
+    Alert.alert(
+      'Contact Owner',
+      'Choose how to contact',
+      [
+        {
+          text: 'Call',
+          onPress: () => Linking.openURL(`tel:${pet.contactPhone}`),
+        },
+        {
+          text: 'Email',
+          onPress: () => Linking.openURL(`mailto:${pet.contactEmail}`),
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
   };
 
   if (isLoading) {
@@ -103,7 +126,26 @@ export default function PetDetailScreen() {
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Pet Image */}
         <View style={styles.imageContainer}>
-          <Image source={{ uri: pet.image }} style={styles.petImage} />
+          <Image
+            source={{ uri: pet.imageUrls[currentImageIndex] || pet.imageUrls[0] }}
+            style={styles.petImage}
+          />
+
+          {/* Image Navigation */}
+          {pet.imageUrls.length > 1 && (
+            <View style={styles.imageNavigation}>
+              {pet.imageUrls.map((_, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.imageDot,
+                    currentImageIndex === index && styles.imageDotActive,
+                  ]}
+                  onPress={() => setCurrentImageIndex(index)}
+                />
+              ))}
+            </View>
+          )}
 
           {/* Back Button */}
           <TouchableOpacity
@@ -122,22 +164,32 @@ export default function PetDetailScreen() {
         <View style={styles.infoContainer}>
           {/* Name */}
           <TextBasic variant="title" weight="bold" style={styles.petName}>
-            {pet.name}
+            {pet.petName}
           </TextBasic>
+
+          {/* Pet Type and Breed */}
+          <View style={styles.petTypeContainer}>
+            <TextBasic style={styles.petTypeText} color="#C8E64D">
+              {pet.petType.charAt(0).toUpperCase() + pet.petType.slice(1)}
+              {pet.breed && ` • ${pet.breed}`}
+            </TextBasic>
+          </View>
 
           {/* Contact Info */}
           <View style={styles.contactContainer}>
+            {pet.user && (
+              <TextBasic style={styles.contactText} color="#C8E64D">
+                By {pet.user.fullName}
+              </TextBasic>
+            )}
             <TextBasic style={styles.contactText} color="#C8E64D">
-              By {pet.reportedBy}
-            </TextBasic>
-            <TextBasic style={styles.contactText} color="#C8E64D">
-              contact : 99999999
+              Contact: {pet.contactPhone}
             </TextBasic>
           </View>
 
           {/* Published Date */}
           <TextBasic style={styles.dateText} color="#AAA">
-            Publised {formatDate(pet.reportedAt)}
+            Published {formatDate(pet.createdAt)}
           </TextBasic>
 
           {/* Tabs */}
@@ -189,62 +241,50 @@ export default function PetDetailScreen() {
                   {pet.description}
                 </TextBasic>
 
-                {/* Additional Info for Adoption */}
-                {pet.status === 'adoption' && (
-                  <View style={styles.additionalInfo}>
-                    {pet.age && (
-                      <View style={styles.infoRow}>
-                        <Ionicons name="calendar" size={20} color="#C8E64D" />
-                        <TextBasic style={styles.infoLabel}>Age:</TextBasic>
-                        <TextBasic style={styles.infoValue}>{pet.age}</TextBasic>
-                      </View>
-                    )}
-                    {pet.gender && (
-                      <View style={styles.infoRow}>
-                        <Ionicons
-                          name={pet.gender === 'male' ? 'male' : 'female'}
-                          size={20}
-                          color="#C8E64D"
-                        />
-                        <TextBasic style={styles.infoLabel}>Gender:</TextBasic>
-                        <TextBasic style={styles.infoValue}>
-                          {pet.gender === 'male' ? 'Male' : 'Female'}
-                        </TextBasic>
-                      </View>
-                    )}
+                {/* Status Info */}
+                <View style={styles.additionalInfo}>
+                  <View style={styles.infoRow}>
+                    <Ionicons name="information-circle" size={20} color="#C8E64D" />
+                    <TextBasic style={styles.infoLabel}>Status:</TextBasic>
+                    <TextBasic style={styles.infoValue}>
+                      {pet.status.charAt(0).toUpperCase() + pet.status.slice(1)}
+                    </TextBasic>
                   </View>
-                )}
+                </View>
               </View>
             ) : (
               <View style={styles.locationContainer}>
-                {pet.location ? (
+                {pet.location && pet.location.coordinates.length === 2 ? (
                   <>
                     <View style={styles.mapContainer}>
                       <MapView
                         style={styles.map}
                         initialRegion={{
-                          latitude: pet.location.latitude,
-                          longitude: pet.location.longitude,
+                          latitude: pet.location.coordinates[1],
+                          longitude: pet.location.coordinates[0],
                           latitudeDelta: 0.01,
                           longitudeDelta: 0.01,
                         }}
                       >
                         <Marker
                           coordinate={{
-                            latitude: pet.location.latitude,
-                            longitude: pet.location.longitude,
+                            latitude: pet.location.coordinates[1],
+                            longitude: pet.location.coordinates[0],
                           }}
-                          pinColor={pet.status === 'lost' ? '#FF4444' : '#44FF88'}
+                          pinColor={pet.incidentType === 'lost' ? '#FF4444' : '#44FF88'}
                         />
                       </MapView>
                     </View>
-                    {pet.location.address && (
-                      <View style={styles.addressContainer}>
-                        <Ionicons name="location" size={24} color="#C8E64D" />
-                        <TextBasic style={styles.addressText}>
-                          {pet.location.address}
-                        </TextBasic>
-                      </View>
+                    <View style={styles.addressContainer}>
+                      <Ionicons name="location" size={24} color="#C8E64D" />
+                      <TextBasic style={styles.addressText}>
+                        {pet.locationName}
+                      </TextBasic>
+                    </View>
+                    {pet.distance && (
+                      <TextBasic style={styles.distanceText} color="#AAA">
+                        {(pet.distance / 1000).toFixed(2)} km away
+                      </TextBasic>
                     )}
                   </>
                 ) : (
@@ -259,8 +299,8 @@ export default function PetDetailScreen() {
           {/* Contact Button */}
           <View style={styles.buttonContainer}>
             <ButtonBasic
-              title={pet.status === 'adoption' ? 'Adopt Me' : 'Contact Owner'}
-              onPress={() => console.log('Contact owner')}
+              title={pet.incidentType === 'adoption' ? 'Contact for Adoption' : 'Contact Owner'}
+              onPress={handleContact}
               variant="primary"
             />
           </View>
@@ -442,5 +482,34 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     marginTop: 32,
+  },
+  imageNavigation: {
+    position: 'absolute',
+    bottom: 50,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  imageDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  imageDotActive: {
+    backgroundColor: '#C8E64D',
+    width: 24,
+  },
+  petTypeContainer: {
+    marginBottom: 8,
+  },
+  petTypeText: {
+    fontSize: 16,
+  },
+  distanceText: {
+    fontSize: 14,
+    textAlign: 'center',
   },
 });
