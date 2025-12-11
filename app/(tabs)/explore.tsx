@@ -7,16 +7,18 @@ import {
   Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { TextBasic } from '@/components/TextBasic';
 import { ButtonBasic } from '@/components/ButtonBasic';
 import { SearchBarComponent } from '@/components/SearchBarComponent';
 import { PetCardComponent } from '@/components/PetCardComponent';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { incidentsService } from '@/services/incidents.service';
 import { Incident } from '@/types';
 import * as Location from 'expo-location';
 
 export default function AdoptionScreen() {
+  const { t } = useLanguage();
   const router = useRouter();
   const [pets, setPets] = useState<Incident[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -27,9 +29,19 @@ export default function AdoptionScreen() {
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [isNearbyMode, setIsNearbyMode] = useState(false);
 
-  useEffect(() => {
-    loadPets();
-  }, []);
+  // Refresh data when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      // Reload the current view (search, nearby, or all)
+      if (isNearbyMode && userLocation) {
+        handleNearMe();
+      } else if (searchQuery.trim()) {
+        handleSearch(searchQuery, 1);
+      } else {
+        loadPets(1);
+      }
+    }, [isNearbyMode, searchQuery])
+  );
 
   const loadPets = async (page: number = 1) => {
     try {
@@ -55,7 +67,7 @@ export default function AdoptionScreen() {
       setCurrentPage(page);
     } catch (error) {
       console.error('Error loading adoption pets:', error);
-      Alert.alert('Error', 'No se pudieron cargar las mascotas en adopción');
+      Alert.alert(t('common.error'), t('explore.errorLoadingPets'));
     } finally {
       setIsLoading(false);
       setIsLoadingMore(false);
@@ -91,7 +103,7 @@ export default function AdoptionScreen() {
         setCurrentPage(page);
       } catch (error) {
         console.error('Error searching adoption pets:', error);
-        Alert.alert('Error', 'No se pudieron buscar las mascotas');
+        Alert.alert(t('common.error'), t('explore.errorSearchingPets'));
       } finally {
         setIsLoading(false);
         setIsLoadingMore(false);
@@ -113,17 +125,6 @@ export default function AdoptionScreen() {
     }
   };
 
-  const handleToggleFavorite = useCallback(async (petId: string) => {
-    // Note: Backend doesn't have favorites yet, but keeping UI interaction
-    setPets(prevPets =>
-      prevPets.map(pet =>
-        pet._id === petId ? { ...pet, isFavorite: !pet.isFavorite } : pet
-      )
-    );
-
-    // TODO: Implement backend favorites endpoint
-  }, []);
-
   const handleNearMe = async () => {
     try {
       // Request location permissions
@@ -131,8 +132,8 @@ export default function AdoptionScreen() {
 
       if (status !== 'granted') {
         Alert.alert(
-          'Permiso denegado',
-          'Se necesita permiso de ubicación para buscar mascotas cerca de ti'
+          t('explore.locationPermissionDenied'),
+          t('explore.locationPermissionMessage')
         );
         return;
       }
@@ -158,7 +159,7 @@ export default function AdoptionScreen() {
       setCurrentPage(1);
     } catch (error) {
       console.error('Error loading nearby pets:', error);
-      Alert.alert('Error', 'No se pudieron cargar las mascotas cercanas');
+      Alert.alert(t('common.error'), t('explore.errorLoadingNearbyPets'));
       setIsNearbyMode(false);
     } finally {
       setIsLoading(false);
@@ -172,9 +173,8 @@ export default function AdoptionScreen() {
         pathname: '/pet-detail/[id]',
         params: { id: item._id }
       })}
-      onToggleFavorite={handleToggleFavorite}
     />
-  ), [router, handleToggleFavorite]);
+  ), [router]);
 
   const keyExtractor = useCallback((item: Incident) => item._id, []);
 
@@ -182,7 +182,7 @@ export default function AdoptionScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TextBasic variant="title" style={styles.title}>
-          Animales en <TextBasic variant="title" color="#C8E64D">adopción</TextBasic>
+          {t('explore.titlePart1')} <TextBasic variant="title" color="#C8E64D">{t('explore.titlePart2')}</TextBasic>
         </TextBasic>
 
         <View style={styles.searchRow}>
@@ -190,12 +190,12 @@ export default function AdoptionScreen() {
             <SearchBarComponent
               value={searchQuery}
               onChangeText={handleSearch}
-              placeholder="Buscar"
+              placeholder={t('explore.searchPlaceholder')}
             />
           </View>
 
           <ButtonBasic
-            title="cerca de mí"
+            title={t('explore.nearMe')}
             onPress={handleNearMe}
             variant="primary"
             style={styles.nearMeButton}
@@ -220,7 +220,7 @@ export default function AdoptionScreen() {
             isLoadingMore ? (
               <View style={styles.footerLoader}>
                 <ActivityIndicator size="small" color="#C8E64D" />
-                <TextBasic style={styles.loadingText}>Cargando más...</TextBasic>
+                <TextBasic style={styles.loadingText}>{t('common.loadingMore')}</TextBasic>
               </View>
             ) : null
           }

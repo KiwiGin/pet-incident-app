@@ -15,16 +15,18 @@ import { InputBasic } from '../../components/InputBasic';
 import { ButtonBasic } from '../../components/ButtonBasic';
 import { TextBasic } from '../../components/TextBasic';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 export function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const { login, isLoading } = useAuth();
+  const { t } = useLanguage();
   const router = useRouter();
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+      Alert.alert(t('common.error'), t('auth.fillAllFields'));
       return;
     }
 
@@ -33,8 +35,8 @@ export function Login() {
       router.replace('/(tabs)');
     } catch (error) {
       Alert.alert(
-        'Login Failed',
-        error instanceof Error ? error.message : 'Invalid credentials'
+        t('auth.loginFailed'),
+        error instanceof Error ? error.message : t('auth.invalidCredentials')
       );
     }
   };
@@ -44,7 +46,7 @@ export function Login() {
   };
 
   const handleForgotPassword = () => {
-    Alert.alert('Forgot Password', 'Password recovery feature coming soon!');
+    Alert.alert(t('auth.forgotPassword'), t('auth.passwordRecovery'));
   };
 
   return (
@@ -63,12 +65,12 @@ export function Login() {
         >
           <View style={styles.formContainer}>
             <TextBasic variant="title" style={styles.title} color="#C8E64D">
-              Login
+              {t('auth.login')}
             </TextBasic>
 
             <View style={styles.inputsContainer}>
               <InputBasic
-                placeholder="example@gmail.com"
+                placeholder={t('auth.emailPlaceholder')}
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -76,7 +78,7 @@ export function Login() {
               />
 
               <InputBasic
-                placeholder="Password"
+                placeholder={t('auth.password')}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
@@ -84,23 +86,23 @@ export function Login() {
 
               <TouchableOpacity onPress={handleForgotPassword}>
                 <TextBasic style={styles.forgotPassword} color="#AAA">
-                  Forgot Password?
+                  {t('auth.forgotPassword')}
                 </TextBasic>
               </TouchableOpacity>
             </View>
 
             <ButtonBasic
-              title="Log in"
+              title={t('auth.logIn')}
               onPress={handleLogin}
               loading={isLoading}
               style={styles.loginButton}
             />
 
             <View style={styles.signupContainer}>
-              <TextBasic color="#FFF">Doesn't have an account? </TextBasic>
+              <TextBasic color="#FFF">{t('auth.dontHaveAccount')} </TextBasic>
               <TouchableOpacity onPress={handleSignup}>
                 <TextBasic weight="semibold" color="#C8E64D">
-                  Signup
+                  {t('auth.signUp')}
                 </TextBasic>
               </TouchableOpacity>
             </View>

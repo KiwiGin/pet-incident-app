@@ -145,5 +145,37 @@ export const authService = {
 
   async getToken(): Promise<string | null> {
     return await getToken();
+  },
+
+  async updateProfile(updates: { photoURL?: string; fullName?: string; phone?: string }): Promise<User> {
+    try {
+      const token = await getToken();
+
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await fetch(API_ENDPOINTS.USERS.PROFILE, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updates),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to update profile');
+      }
+
+      const data = await response.json();
+      return mapBackendUserToUser(data.data.user);
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Network error. Please check your connection.');
+    }
   }
 };

@@ -1,6 +1,7 @@
 import { ButtonBasic } from '@/components/ButtonBasic';
 import { TextBasic } from '@/components/TextBasic';
 import { useLocation } from '@/contexts/LocationContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -22,6 +23,7 @@ interface LocationData {
 
 export default function LocationPickerScreen() {
   const router = useRouter();
+  const { t } = useLanguage();
   const params = useLocalSearchParams();
   const { setSelectedLocation: setContextLocation } = useLocation();
 
@@ -42,7 +44,7 @@ export default function LocationPickerScreen() {
       const { status } = await Location.requestForegroundPermissionsAsync();
 
       if (status !== 'granted') {
-        Alert.alert('Permiso denegado', 'Se necesita permiso para acceder a la ubicación');
+        Alert.alert(t('locationPicker.permissionDenied'), t('locationPicker.permissionMessage'));
         return;
       }
 
@@ -61,7 +63,7 @@ export default function LocationPickerScreen() {
       });
     } catch (error) {
       console.error('Error getting location:', error);
-      Alert.alert('Error', 'No se pudo obtener la ubicación actual');
+      Alert.alert(t('common.error'), t('locationPicker.errorLocation'));
     }
   };
 
@@ -76,7 +78,7 @@ export default function LocationPickerScreen() {
 
       const address = addressResult
         ? `${addressResult.street || ''} ${addressResult.district || ''}, ${addressResult.city || ''}`
-        : 'Ubicación seleccionada';
+        : t('locationPicker.locationSelected');
 
       setSelectedLocation({
         latitude,
@@ -88,14 +90,14 @@ export default function LocationPickerScreen() {
       setSelectedLocation({
         latitude,
         longitude,
-        address: 'Ubicación seleccionada',
+        address: t('locationPicker.locationSelected'),
       });
     }
   };
 
   const handleConfirm = () => {
     if (!selectedLocation) {
-      Alert.alert('Error', 'Por favor selecciona una ubicación en el mapa');
+      Alert.alert(t('common.error'), t('locationPicker.errorSelectLocation'));
       return;
     }
 
@@ -120,10 +122,10 @@ export default function LocationPickerScreen() {
 
         <View style={styles.headerTextContainer}>
           <TextBasic variant="title" style={styles.title}>
-            Seleccionar ubicación
+            {t('locationPicker.title')}
           </TextBasic>
           <TextBasic style={styles.subtitle} color="#AAA">
-            Toca en el mapa para seleccionar
+            {t('locationPicker.subtitle')}
           </TextBasic>
         </View>
       </View>
@@ -154,7 +156,7 @@ export default function LocationPickerScreen() {
           <Ionicons name="location" size={24} color="#C8E64D" />
           <View style={styles.locationTextContainer}>
             <TextBasic variant="subtitle" weight="semibold">
-              Ubicación seleccionada
+              {t('locationPicker.selectedLocation')}
             </TextBasic>
             <TextBasic style={styles.address} color="#AAA">
               {selectedLocation.address || `${selectedLocation.latitude.toFixed(6)}, ${selectedLocation.longitude.toFixed(6)}`}
@@ -172,12 +174,12 @@ export default function LocationPickerScreen() {
         >
           <Ionicons name="locate" size={24} color="#C8E64D" />
           <TextBasic style={styles.currentLocationText}>
-            Mi ubicación actual
+            {t('locationPicker.currentLocation')}
           </TextBasic>
         </TouchableOpacity>
 
         <ButtonBasic
-          title="Confirmar ubicación"
+          title={t('locationPicker.confirmLocation')}
           onPress={handleConfirm}
           variant="primary"
         />

@@ -10,7 +10,7 @@ export const MOCK_PETS: Pet[] = [
     status: 'lost',
     location: {
       latitude: -12.087808,
-      longitude: -77.072611,
+      longitude: -77.072612,
       address: 'Jirón Ayacucho 750, Magdalena del Mar, Lima'
     },
     reportedBy: '1',
@@ -25,8 +25,8 @@ export const MOCK_PETS: Pet[] = [
     description: 'El otro día cuando salimos a pasear, se asustó y salió corriendo. Si alguien lo ha visto necesito que se contacte conmigo por favor!',
     status: 'lost',
     location: {
-      latitude: -12.086195,
-      longitude: -77.052352,
+      latitude: -12.087803,
+      longitude: -77.072610,
       address: 'San Isidro, Lima'
     },
     reportedBy: 'user2',

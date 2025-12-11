@@ -3,10 +3,11 @@ import { PetCardComponent } from '@/components/PetCardComponent';
 import { SearchBarComponent } from '@/components/SearchBarComponent';
 import { TextBasic } from '@/components/TextBasic';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { incidentsService } from '@/services/incidents.service';
 import { Incident } from '@/types';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -22,6 +23,7 @@ import * as Location from 'expo-location';
 
 export default function HomeScreen() {
   const { user, isLoading: authLoading } = useAuth();
+  const { t } = useLanguage();
   const router = useRouter();
   const [pets, setPets] = useState<Incident[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -40,9 +42,19 @@ export default function HomeScreen() {
     }
   }, [user, authLoading]);
 
-  useEffect(() => {
-    loadPets();
-  }, []);
+  // Refresh data when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      // Reload the current view (search, nearby, or all)
+      if (isNearbyMode && userLocation) {
+        handleNearMe();
+      } else if (searchQuery.trim()) {
+        handleSearch(searchQuery, 1);
+      } else {
+        loadPets(1);
+      }
+    }, [isNearbyMode, searchQuery])
+  );
 
   const loadPets = async (page: number = 1) => {
     try {
@@ -68,7 +80,7 @@ export default function HomeScreen() {
       setCurrentPage(page);
     } catch (error) {
       console.error('Error loading pets:', error);
-      Alert.alert('Error', 'No se pudieron cargar las mascotas perdidas');
+      Alert.alert(t('common.error'), t('home.errorLoadingPets'));
     } finally {
       setIsLoading(false);
       setIsLoadingMore(false);
@@ -104,7 +116,7 @@ export default function HomeScreen() {
         setCurrentPage(page);
       } catch (error) {
         console.error('Error searching pets:', error);
-        Alert.alert('Error', 'No se pudieron buscar las mascotas');
+        Alert.alert(t('common.error'), t('home.errorSearchingPets'));
       } finally {
         setIsLoading(false);
         setIsLoadingMore(false);
@@ -126,19 +138,6 @@ export default function HomeScreen() {
     }
   };
 
-  const handleToggleFavorite = useCallback(async (petId: string) => {
-    // Note: Backend doesn't have favorites yet, but keeping UI interaction
-    // Optimistic update - update UI immediately
-    setPets(prevPets =>
-      prevPets.map(pet =>
-        pet._id === petId ? { ...pet, isFavorite: !pet.isFavorite } : pet
-      )
-    );
-
-    // TODO: Implement backend favorites endpoint
-    // For now, just update UI state
-  }, []);
-
   const handleNearMe = async () => {
     try {
       // Request location permissions
@@ -146,8 +145,8 @@ export default function HomeScreen() {
 
       if (status !== 'granted') {
         Alert.alert(
-          'Permiso denegado',
-          'Se necesita permiso de ubicación para buscar mascotas cerca de ti'
+          t('home.locationPermissionDenied'),
+          t('home.locationPermissionMessage')
         );
         return;
       }
@@ -173,7 +172,7 @@ export default function HomeScreen() {
       setCurrentPage(1);
     } catch (error) {
       console.error('Error loading nearby pets:', error);
-      Alert.alert('Error', 'No se pudieron cargar las mascotas cercanas');
+      Alert.alert(t('common.error'), t('home.errorLoadingNearbyPets'));
       setIsNearbyMode(false);
     } finally {
       setIsLoading(false);
@@ -187,9 +186,8 @@ export default function HomeScreen() {
         pathname: '/pet-detail/[id]',
         params: { id: item._id }
       })}
-      onToggleFavorite={handleToggleFavorite}
     />
-  ), [router, handleToggleFavorite]);
+  ), [router]);
 
   const keyExtractor = useCallback((item: Incident) => item._id, []);
 
@@ -242,7 +240,7 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TextBasic variant="title" style={styles.title}>
-          Animales <TextBasic variant="title" color="#FF6B6B">perdidos</TextBasic>
+          {t('home.titlePart1')} <TextBasic variant="title" color="#FF6B6B">{t('home.titlePart2')}</TextBasic>
         </TextBasic>
 
         <View style={styles.searchRow}>
@@ -250,12 +248,12 @@ export default function HomeScreen() {
             <SearchBarComponent
               value={searchQuery}
               onChangeText={handleSearch}
-              placeholder="Buscar"
+              placeholder={t('home.searchPlaceholder')}
             />
           </View>
 
           <ButtonBasic
-            title="Cerca de mí"
+            title={t('home.nearMe')}
             onPress={handleNearMe}
             variant="primary"
             style={styles.nearMeButton}
@@ -280,7 +278,7 @@ export default function HomeScreen() {
             isLoadingMore ? (
               <View style={styles.footerLoader}>
                 <ActivityIndicator size="small" color="#C8E64D" />
-                <TextBasic style={styles.loadingText}>Cargando más...</TextBasic>
+                <TextBasic style={styles.loadingText}>{t('common.loadingMore')}</TextBasic>
               </View>
             ) : null
           }
@@ -310,7 +308,7 @@ export default function HomeScreen() {
           pointerEvents={isFabOpen ? 'auto' : 'none'}
         >
           <View style={styles.fabOptionRow}>
-            <TextBasic style={styles.fabLabel}>Mapa de incidencias</TextBasic>
+            <TextBasic style={styles.fabLabel}>{t('home.fabLabelMap')}</TextBasic>
             <TouchableOpacity
               style={styles.fabOptionButton}
               onPress={handleLocationPress}
@@ -333,7 +331,7 @@ export default function HomeScreen() {
           pointerEvents={isFabOpen ? 'auto' : 'none'}
         >
           <View style={styles.fabOptionRow}>
-            <TextBasic style={styles.fabLabel}>Crear incidencia</TextBasic>
+            <TextBasic style={styles.fabLabel}>{t('home.fabLabelCreate')}</TextBasic>
             <TouchableOpacity
               style={styles.fabOptionButton}
               onPress={handleReportPress}

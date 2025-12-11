@@ -15,6 +15,7 @@ import { InputBasic } from '../../components/InputBasic';
 import { ButtonBasic } from '../../components/ButtonBasic';
 import { TextBasic } from '../../components/TextBasic';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 export function Signup() {
   const [name, setName] = useState('');
@@ -23,21 +24,22 @@ export function Signup() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const { signup, isLoading } = useAuth();
+  const { t } = useLanguage();
   const router = useRouter();
 
   const handleSignup = async () => {
     if (!name || !email || !password || !confirmPassword) {
-      Alert.alert('Error', 'Please fill in all required fields');
+      Alert.alert(t('common.error'), t('auth.fillAllRequiredFields'));
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      Alert.alert(t('common.error'), t('auth.passwordsDoNotMatch'));
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
+      Alert.alert(t('common.error'), t('auth.passwordMinLength'));
       return;
     }
 
@@ -46,8 +48,8 @@ export function Signup() {
       router.replace('/(tabs)');
     } catch (error) {
       Alert.alert(
-        'Signup Failed',
-        error instanceof Error ? error.message : 'An error occurred'
+        t('auth.signupFailed'),
+        error instanceof Error ? error.message : t('auth.errorOccurred')
       );
     }
   };
@@ -72,18 +74,18 @@ export function Signup() {
         >
           <View style={styles.formContainer}>
             <TextBasic variant="title" style={styles.title} color="#C8E64D">
-              Signup
+              {t('auth.signup')}
             </TextBasic>
 
             <View style={styles.inputsContainer}>
               <InputBasic
-                placeholder="Full Name"
+                placeholder={t('auth.fullName')}
                 value={name}
                 onChangeText={setName}
               />
 
               <InputBasic
-                placeholder="example@gmail.com"
+                placeholder={t('auth.emailPlaceholder')}
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -91,21 +93,21 @@ export function Signup() {
               />
 
               <InputBasic
-                placeholder="Phone (optional)"
+                placeholder={t('auth.phoneOptional')}
                 value={phone}
                 onChangeText={setPhone}
                 keyboardType="phone-pad"
               />
 
               <InputBasic
-                placeholder="Password"
+                placeholder={t('auth.password')}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
               />
 
               <InputBasic
-                placeholder="Confirm Password"
+                placeholder={t('auth.confirmPassword')}
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 secureTextEntry
@@ -113,17 +115,17 @@ export function Signup() {
             </View>
 
             <ButtonBasic
-              title="Sign up"
+              title={t('auth.signUp')}
               onPress={handleSignup}
               loading={isLoading}
               style={styles.signupButton}
             />
 
             <View style={styles.loginContainer}>
-              <TextBasic color="#FFF">Already have an account? </TextBasic>
+              <TextBasic color="#FFF">{t('auth.alreadyHaveAccount')} </TextBasic>
               <TouchableOpacity onPress={handleLogin}>
                 <TextBasic weight="semibold" color="#C8E64D">
-                  Login
+                  {t('auth.login')}
                 </TextBasic>
               </TouchableOpacity>
             </View>

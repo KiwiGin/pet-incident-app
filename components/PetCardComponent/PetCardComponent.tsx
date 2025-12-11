@@ -1,14 +1,11 @@
 import React from 'react';
 import { View, Image, TouchableOpacity, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { TextBasic } from '../TextBasic';
 import { Pet, Incident } from '../../types';
 
 interface PetCardComponentProps {
   pet: Pet | Incident;
   onPress?: () => void;
-  onToggleFavorite?: (petId: string) => void;
-  showFavorite?: boolean;
 }
 
 // Type guard to check if pet is an Incident
@@ -18,19 +15,12 @@ const isIncident = (pet: Pet | Incident): pet is Incident => {
 
 function PetCardComponentBase({
   pet,
-  onPress,
-  onToggleFavorite,
-  showFavorite = true
+  onPress
 }: PetCardComponentProps) {
-  const petId = isIncident(pet) ? pet._id : pet.id;
   const petName = isIncident(pet) ? pet.petName : pet.name;
   const petImage = isIncident(pet) ? pet.imageUrls[0] : pet.image;
   const petDescription = pet.description;
   const petType = isIncident(pet) ? pet.incidentType : pet.status;
-
-  const handleFavoritePress = React.useCallback(() => {
-    onToggleFavorite?.(petId);
-  }, [onToggleFavorite, petId]);
 
   const getSubtitle = () => {
     if (petType === 'lost') {
@@ -65,21 +55,6 @@ function PetCardComponentBase({
           {petDescription}
         </TextBasic>
       </View>
-
-      {showFavorite && (
-        <TouchableOpacity
-          style={styles.favoriteButton}
-          onPress={handleFavoritePress}
-        >
-          <View style={styles.favoriteCircle}>
-            <Ionicons
-              name={pet.isFavorite ? 'heart' : 'heart-outline'}
-              size={20}
-              color={pet.isFavorite ? '#FF6B6B' : '#888'}
-            />
-          </View>
-        </TouchableOpacity>
-      )}
     </TouchableOpacity>
   );
 }
@@ -88,11 +63,7 @@ export const PetCardComponent = React.memo(PetCardComponentBase, (prevProps, nex
   const prevId = isIncident(prevProps.pet) ? prevProps.pet._id : prevProps.pet.id;
   const nextId = isIncident(nextProps.pet) ? nextProps.pet._id : nextProps.pet.id;
 
-  return (
-    prevId === nextId &&
-    prevProps.pet.isFavorite === nextProps.pet.isFavorite &&
-    prevProps.showFavorite === nextProps.showFavorite
-  );
+  return prevId === nextId;
 });
 
 const styles = StyleSheet.create({
@@ -124,18 +95,5 @@ const styles = StyleSheet.create({
   description: {
     color: '#AAA',
     lineHeight: 18,
-  },
-  favoriteButton: {
-    position: 'absolute',
-    bottom: 15,
-    right: 15,
-  },
-  favoriteCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#FFF',
-    justifyContent: 'center',
-    alignItems: 'center',
   }
 });

@@ -24,6 +24,7 @@ export interface AuthContextType {
   login: (credentials: LoginCredentials) => Promise<void>;
   signup: (data: SignupData) => Promise<void>;
   logout: () => Promise<void>;
+  updateUserProfile: (updates: Partial<User>) => Promise<void>;
 }
 
 export interface Pet {

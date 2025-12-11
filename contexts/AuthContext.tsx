@@ -60,8 +60,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateUserProfile = async (updates: Partial<User>) => {
+    try {
+      // Map User fields to backend fields
+      const backendUpdates: { photoURL?: string; fullName?: string; phone?: string } = {};
+
+      if (updates.avatar !== undefined) {
+        backendUpdates.photoURL = updates.avatar;
+      }
+      if (updates.name !== undefined) {
+        backendUpdates.fullName = updates.name;
+      }
+      if (updates.phone !== undefined) {
+        backendUpdates.phone = updates.phone;
+      }
+
+      const updatedUser = await authService.updateProfile(backendUpdates);
+      setUser(updatedUser);
+    } catch (error) {
+      throw error;
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, signup, logout, updateUserProfile }}>
       {children}
     </AuthContext.Provider>
   );

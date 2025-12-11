@@ -10,7 +10,7 @@ import { incidentsService } from '@/services/incidents.service';
 import { uploadService } from '@/services/upload.service';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -26,29 +26,60 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 type IncidentType = 'lost' | 'adoption';
 type PetType = 'dog' | 'cat' | 'other';
 
-export default function CreateIncidentScreen() {
+export default function EditIncidentScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const { t } = useLanguage();
   const { selectedLocation, setSelectedLocation } = useLocation();
   const router = useRouter();
 
-  // Form fields matching API requirements
+  // Form fields
   const [petName, setPetName] = useState('');
   const [petType, setPetType] = useState<PetType>('dog');
   const [breed, setBreed] = useState('');
   const [description, setDescription] = useState('');
   const [incidentType, setIncidentType] = useState<IncidentType>('lost');
   const [imageUris, setImageUris] = useState<string[]>([]);
-  const [contactPhone, setContactPhone] = useState(user?.phone || '');
-  const [contactEmail, setContactEmail] = useState(user?.email || '');
+  const [existingImageUrls, setExistingImageUrls] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    loadIncident();
+
     // Clean up location when component unmounts
     return () => {
       setSelectedLocation(null);
     };
-  }, []);
+  }, [id]);
+
+  const loadIncident = async () => {
+    try {
+      setIsLoading(true);
+      const incident = await incidentsService.getIncidentById(id);
+
+      // Pre-fill form with existing data
+      setPetName(incident.petName);
+      setPetType(incident.petType);
+      setBreed(incident.breed || '');
+      setDescription(incident.description);
+      setIncidentType(incident.incidentType);
+      setExistingImageUrls(incident.imageUrls);
+
+      // Set location
+      setSelectedLocation({
+        latitude: incident.location.coordinates[1],
+        longitude: incident.location.coordinates[0],
+        address: incident.locationName,
+      });
+    } catch (error) {
+      console.error('Error loading incident:', error);
+      Alert.alert(t('common.error'), t('incidents.errorLoading'));
+      router.back();
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const requestCameraPermission = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -61,8 +92,9 @@ export default function CreateIncidentScreen() {
   };
 
   const handleImagePicker = () => {
-    if (imageUris.length >= 3) {
-      Alert.alert(t('incidents.photoLimit'), t('incidents.photoLimitMessage'));
+    const totalImages = existingImageUrls.length + imageUris.length;
+    if (totalImages >= 3) {
+      Alert.alert(t('incidents.photoLimit'), t('incidents.photoLimitMessageEditing'));
       return;
     }
 
@@ -116,7 +148,11 @@ export default function CreateIncidentScreen() {
     );
   };
 
-  const handleRemoveImage = (index: number) => {
+  const handleRemoveExistingImage = (index: number) => {
+    setExistingImageUrls(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleRemoveNewImage = (index: number) => {
     setImageUris(prev => prev.filter((_, i) => i !== index));
   };
 
@@ -149,7 +185,7 @@ export default function CreateIncidentScreen() {
     router.push('/location-picker');
   };
 
-  const handleCreateIncident = async () => {
+  const handleUpdateIncident = async () => {
     // Validations
     if (!petName.trim()) {
       Alert.alert(t('common.error'), t('createIncident.errorPetName'));
@@ -161,7 +197,8 @@ export default function CreateIncidentScreen() {
       return;
     }
 
-    if (imageUris.length === 0) {
+    const totalImages = existingImageUrls.length + imageUris.length;
+    if (totalImages === 0) {
       Alert.alert(t('common.error'), t('createIncident.errorPhoto'));
       return;
     }
@@ -171,38 +208,28 @@ export default function CreateIncidentScreen() {
       return;
     }
 
-    if (!contactPhone.trim()) {
-      Alert.alert(t('common.error'), t('createIncident.errorPhone'));
-      return;
-    }
-
-    if (!contactEmail.trim()) {
-      Alert.alert(t('common.error'), t('createIncident.errorEmail'));
-      return;
-    }
-
     try {
       setIsSubmitting(true);
 
-      // Step 1: Upload images to Cloudinary
-      const uploadedUrls = await uploadService.uploadMultiple(imageUris);
+      // Upload new images if any
+      let uploadedUrls: string[] = [];
+      if (imageUris.length > 0) {
+        uploadedUrls = await uploadService.uploadMultiple(imageUris);
+      }
 
-      // Step 2: Create incident
-      await incidentsService.createIncident({
-        incidentType,
+      // Combine existing and new image URLs
+      const allImageUrls = [...existingImageUrls, ...uploadedUrls];
+
+      // Update incident
+      await incidentsService.updateIncident(id, {
         petName: petName.trim(),
-        petType,
-        breed: breed.trim() || undefined,
         description: description.trim(),
-        imageUrls: uploadedUrls,
         latitude: selectedLocation.latitude,
         longitude: selectedLocation.longitude,
         locationName: selectedLocation.address || 'Ubicación desconocida',
-        contactPhone: contactPhone.trim(),
-        contactEmail: contactEmail.trim(),
       });
 
-      Alert.alert(t('common.success'), t('incidents.createSuccess'), [
+      Alert.alert(t('common.success'), t('incidents.updateSuccess'), [
         {
           text: t('common.ok'),
           onPress: () => {
@@ -212,10 +239,10 @@ export default function CreateIncidentScreen() {
         },
       ]);
     } catch (error) {
-      console.error('Error creating incident:', error);
+      console.error('Error updating incident:', error);
       Alert.alert(
         t('common.error'),
-        error instanceof Error ? error.message : t('incidents.errorLoading')
+        error instanceof Error ? error.message : t('incidents.errorUpdating')
       );
     } finally {
       setIsSubmitting(false);
@@ -230,6 +257,19 @@ export default function CreateIncidentScreen() {
     const types = { dog: t('incidents.dog'), cat: t('incidents.cat'), other: t('incidents.other') };
     return types[petType];
   };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#C8E64D" />
+          <TextBasic style={styles.loadingText}>{t('editIncident.loadingIncident')}</TextBasic>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const allImages = [...existingImageUrls, ...imageUris];
 
   return (
     <SafeAreaView style={styles.container}>
@@ -246,10 +286,10 @@ export default function CreateIncidentScreen() {
 
           <View style={styles.headerTextContainer}>
             <TextBasic variant="title" style={styles.greeting}>
-              {t('incidents.hello')} {user?.name || 'User'}
+              {t('editIncident.title')}
             </TextBasic>
             <TextBasic style={styles.subtitle} color="#C8E64D">
-              {t('createIncident.subtitle')}
+              {t('editIncident.subtitle')}
             </TextBasic>
           </View>
         </View>
@@ -267,30 +307,44 @@ export default function CreateIncidentScreen() {
             onPress={handleImagePicker}
             activeOpacity={0.8}
           >
-            {imageUris.length > 0 ? (
-              <Image source={{ uri: imageUris[0] }} style={styles.cameraImage} />
+            {allImages.length > 0 ? (
+              <Image source={{ uri: allImages[0] }} style={styles.cameraImage} />
             ) : (
               <Ionicons name="camera" size={40} color="#C8E64D" />
             )}
           </TouchableOpacity>
         </View>
 
-        {/* Additional images preview - moved outside to fix layout */}
-        {imageUris.length > 0 && (
+        {/* Additional images preview */}
+        {allImages.length > 0 && (
           <View style={styles.imagePreviewContainer}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.imagePreviewContent}>
-              {imageUris.map((uri, index) => (
-                <View key={index} style={styles.imagePreview}>
+              {existingImageUrls.map((uri, index) => (
+                <View key={`existing-${index}`} style={styles.imagePreview}>
                   <Image source={{ uri }} style={styles.previewImage} />
                   <TouchableOpacity
                     style={styles.removeImageButton}
-                    onPress={() => handleRemoveImage(index)}
+                    onPress={() => handleRemoveExistingImage(index)}
                   >
                     <Ionicons name="close-circle" size={24} color="#FF4444" />
                   </TouchableOpacity>
                 </View>
               ))}
-              {imageUris.length < 3 && (
+              {imageUris.map((uri, index) => (
+                <View key={`new-${index}`} style={styles.imagePreview}>
+                  <Image source={{ uri }} style={styles.previewImage} />
+                  <TouchableOpacity
+                    style={styles.removeImageButton}
+                    onPress={() => handleRemoveNewImage(index)}
+                  >
+                    <Ionicons name="close-circle" size={24} color="#FF4444" />
+                  </TouchableOpacity>
+                  <View style={styles.newBadge}>
+                    <TextBasic style={styles.newBadgeText}>{t('editIncident.newImage')}</TextBasic>
+                  </View>
+                </View>
+              ))}
+              {allImages.length < 3 && (
                 <TouchableOpacity
                   style={styles.addMoreButton}
                   onPress={handleImagePicker}
@@ -343,24 +397,9 @@ export default function CreateIncidentScreen() {
             onPress={handleTypeSelector}
           />
 
-          <InputBasic
-            placeholder={t('incidents.contactPhone')}
-            value={contactPhone}
-            onChangeText={setContactPhone}
-            keyboardType="phone-pad"
-          />
-
-          <InputBasic
-            placeholder={t('incidents.contactEmail')}
-            value={contactEmail}
-            onChangeText={setContactEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-
           <ButtonBasic
-            title={isSubmitting ? t('incidents.creating') : t('incidents.create')}
-            onPress={handleCreateIncident}
+            title={isSubmitting ? t('editIncident.updating') : t('editIncident.updateButton')}
+            onPress={handleUpdateIncident}
             variant="primary"
             style={styles.createButton}
             disabled={isSubmitting}
@@ -370,7 +409,7 @@ export default function CreateIncidentScreen() {
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#C8E64D" />
               <TextBasic style={styles.loadingText}>
-                {t('incidents.uploadingImages')}
+                {t('incidents.updatingIncident')}
               </TextBasic>
             </View>
           )}
@@ -494,6 +533,20 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  newBadge: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+    backgroundColor: '#C8E64D',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  newBadgeText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#000',
   },
   loadingContainer: {
     marginTop: 20,
