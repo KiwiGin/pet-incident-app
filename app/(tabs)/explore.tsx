@@ -3,29 +3,45 @@ import {
   View,
   StyleSheet,
   ActivityIndicator,
-  FlatList
+  FlatList,
+  Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { TextBasic } from '@/components/TextBasic';
 import { ButtonBasic } from '@/components/ButtonBasic';
 import { SearchBarComponent } from '@/components/SearchBarComponent';
 import { PetCardComponent } from '@/components/PetCardComponent';
-import { petsService } from '@/services/pets.service';
-import { Pet } from '@/types';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { incidentsService } from '@/services/incidents.service';
+import { Incident } from '@/types';
+import * as Location from 'expo-location';
 
 export default function AdoptionScreen() {
+  const { t } = useLanguage();
   const router = useRouter();
-  const [pets, setPets] = useState<Pet[]>([]);
+  const [pets, setPets] = useState<Incident[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [isNearbyMode, setIsNearbyMode] = useState(false);
 
-  useEffect(() => {
-    loadPets();
-  }, []);
+  // Refresh data when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      // Reload the current view (search, nearby, or all)
+      if (isNearbyMode && userLocation) {
+        handleNearMe();
+      } else if (searchQuery.trim()) {
+        handleSearch(searchQuery, 1);
+      } else {
+        loadPets(1);
+      }
+    }, [isNearbyMode, searchQuery])
+  );
 
   const loadPets = async (page: number = 1) => {
     try {
@@ -35,23 +51,23 @@ export default function AdoptionScreen() {
         setIsLoadingMore(true);
       }
 
-      const adoptionPets = await petsService.getAdoptionPets(page);
-      const totalCount = await petsService.getTotalAdoptionPetsCount();
+      const response = await incidentsService.getAdoptionPets({
+        page,
+        limit: 10,
+      });
 
       if (page === 1) {
-        setPets(adoptionPets);
-        setHasMore(adoptionPets.length < totalCount);
+        setPets(response.pets);
+        setHasMore(response.pagination.hasMore);
       } else {
-        setPets(prevPets => {
-          const newPets = [...prevPets, ...adoptionPets];
-          setHasMore(newPets.length < totalCount);
-          return newPets;
-        });
+        setPets(prevPets => [...prevPets, ...response.pets]);
+        setHasMore(response.pagination.hasMore);
       }
 
       setCurrentPage(page);
     } catch (error) {
       console.error('Error loading adoption pets:', error);
+      Alert.alert(t('common.error'), t('explore.errorLoadingPets'));
     } finally {
       setIsLoading(false);
       setIsLoadingMore(false);
@@ -60,6 +76,8 @@ export default function AdoptionScreen() {
 
   const handleSearch = async (query: string, page: number = 1) => {
     setSearchQuery(query);
+    setIsNearbyMode(false); // Exit nearby mode when searching
+
     if (query.trim()) {
       try {
         if (page === 1) {
@@ -68,23 +86,24 @@ export default function AdoptionScreen() {
           setIsLoadingMore(true);
         }
 
-        const results = await petsService.searchAdoptionPets(query, page);
-        const totalCount = await petsService.getSearchAdoptionPetsCount(query);
+        const response = await incidentsService.getAdoptionPets({
+          page,
+          limit: 10,
+          petName: query,
+        });
 
         if (page === 1) {
-          setPets(results);
-          setHasMore(results.length < totalCount);
+          setPets(response.pets);
+          setHasMore(response.pagination.hasMore);
         } else {
-          setPets(prevPets => {
-            const newPets = [...prevPets, ...results];
-            setHasMore(newPets.length < totalCount);
-            return newPets;
-          });
+          setPets(prevPets => [...prevPets, ...response.pets]);
+          setHasMore(response.pagination.hasMore);
         }
 
         setCurrentPage(page);
       } catch (error) {
         console.error('Error searching adoption pets:', error);
+        Alert.alert(t('common.error'), t('explore.errorSearchingPets'));
       } finally {
         setIsLoading(false);
         setIsLoadingMore(false);
@@ -96,7 +115,8 @@ export default function AdoptionScreen() {
   };
 
   const handleLoadMore = () => {
-    if (!isLoadingMore && hasMore) {
+    // Don't load more in nearby mode (not paginated)
+    if (!isLoadingMore && hasMore && !isNearbyMode) {
       if (searchQuery.trim()) {
         handleSearch(searchQuery, currentPage + 1);
       } else {
@@ -105,50 +125,64 @@ export default function AdoptionScreen() {
     }
   };
 
-  const handleToggleFavorite = useCallback(async (petId: string) => {
-    // Optimistic update - update UI immediately
-    setPets(prevPets =>
-      prevPets.map(pet =>
-        pet.id === petId ? { ...pet, isFavorite: !pet.isFavorite } : pet
-      )
-    );
-
-    // Then update the service
+  const handleNearMe = async () => {
     try {
-      await petsService.toggleFavorite(petId);
-    } catch (error) {
-      console.error('Error toggling favorite:', error);
-      // Revert on error
-      setPets(prevPets =>
-        prevPets.map(pet =>
-          pet.id === petId ? { ...pet, isFavorite: !pet.isFavorite } : pet
-        )
-      );
-    }
-  }, []);
+      // Request location permissions
+      const { status } = await Location.requestForegroundPermissionsAsync();
 
-  const handleNearMe = () => {
-    console.log('Near me clicked');
+      if (status !== 'granted') {
+        Alert.alert(
+          t('explore.locationPermissionDenied'),
+          t('explore.locationPermissionMessage')
+        );
+        return;
+      }
+
+      setIsLoading(true);
+      setSearchQuery(''); // Clear search when using nearby
+      setIsNearbyMode(true);
+
+      // Get current location
+      const location = await Location.getCurrentPositionAsync({});
+      const { latitude, longitude } = location.coords;
+      setUserLocation({ latitude, longitude });
+
+      // Load nearby pets (500m radius - BLE detection range)
+      const nearbyPets = await incidentsService.getNearbyAdoptionPets({
+        latitude,
+        longitude,
+        radius: 500, // 500 meters - realistic BLE range
+      });
+
+      setPets(nearbyPets);
+      setHasMore(false); // Nearby search doesn't support pagination
+      setCurrentPage(1);
+    } catch (error) {
+      console.error('Error loading nearby pets:', error);
+      Alert.alert(t('common.error'), t('explore.errorLoadingNearbyPets'));
+      setIsNearbyMode(false);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const renderPetCard = useCallback(({ item }: { item: Pet }) => (
+  const renderPetCard = useCallback(({ item }: { item: Incident }) => (
     <PetCardComponent
       pet={item}
       onPress={() => router.push({
         pathname: '/pet-detail/[id]',
-        params: { id: item.id }
+        params: { id: item._id }
       })}
-      onToggleFavorite={handleToggleFavorite}
     />
-  ), [router, handleToggleFavorite]);
+  ), [router]);
 
-  const keyExtractor = useCallback((item: Pet) => item.id, []);
+  const keyExtractor = useCallback((item: Incident) => item._id, []);
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TextBasic variant="title" style={styles.title}>
-          Animales en <TextBasic variant="title" color="#C8E64D">adopción</TextBasic>
+          {t('explore.titlePart1')} <TextBasic variant="title" color="#C8E64D">{t('explore.titlePart2')}</TextBasic>
         </TextBasic>
 
         <View style={styles.searchRow}>
@@ -156,12 +190,12 @@ export default function AdoptionScreen() {
             <SearchBarComponent
               value={searchQuery}
               onChangeText={handleSearch}
-              placeholder="Buscar"
+              placeholder={t('explore.searchPlaceholder')}
             />
           </View>
 
           <ButtonBasic
-            title="cerca de mí"
+            title={t('explore.nearMe')}
             onPress={handleNearMe}
             variant="primary"
             style={styles.nearMeButton}
@@ -186,7 +220,7 @@ export default function AdoptionScreen() {
             isLoadingMore ? (
               <View style={styles.footerLoader}>
                 <ActivityIndicator size="small" color="#C8E64D" />
-                <TextBasic style={styles.loadingText}>Cargando más...</TextBasic>
+                <TextBasic style={styles.loadingText}>{t('common.loadingMore')}</TextBasic>
               </View>
             ) : null
           }

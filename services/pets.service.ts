@@ -1,6 +1,6 @@
 import { Pet } from '../types';
 
-const MOCK_PETS: Pet[] = [
+export const MOCK_PETS: Pet[] = [
   {
     id: '1',
     name: 'Rocky',
@@ -9,8 +9,8 @@ const MOCK_PETS: Pet[] = [
     description: 'El otro día cuando salimos a pasear, se asustó y salió corriendo. Si alguien lo ha visto necesito que se contacte conmigo por favor!',
     status: 'lost',
     location: {
-      latitude: -12.088284,
-      longitude: -77.073992,
+      latitude: -12.087808,
+      longitude: -77.072612,
       address: 'Jirón Ayacucho 750, Magdalena del Mar, Lima'
     },
     reportedBy: '1',
@@ -25,8 +25,8 @@ const MOCK_PETS: Pet[] = [
     description: 'El otro día cuando salimos a pasear, se asustó y salió corriendo. Si alguien lo ha visto necesito que se contacte conmigo por favor!',
     status: 'lost',
     location: {
-      latitude: -12.086195,
-      longitude: -77.052352,
+      latitude: -12.087803,
+      longitude: -77.072610,
       address: 'San Isidro, Lima'
     },
     reportedBy: 'user2',
@@ -884,7 +884,7 @@ const MOCK_PETS: Pet[] = [
 ];
 
 // Mock data de mascotas en adopción
-const ADOPTION_PETS: Pet[] = [
+export const ADOPTION_PETS: Pet[] = [
   {
     id: 'a1',
     name: 'Charlie',
@@ -895,8 +895,8 @@ const ADOPTION_PETS: Pet[] = [
     age: '3 meses',
     gender: 'male',
     location: {
-      latitude: -12.0464,
-      longitude: -77.0428,
+      latitude: -12.093542,
+      longitude: -77.073496,
       address: 'Refugio Lima Norte'
     },
     reportedBy: 'refugio1',

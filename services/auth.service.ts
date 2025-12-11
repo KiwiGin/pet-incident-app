@@ -1,62 +1,181 @@
+import * as SecureStore from 'expo-secure-store';
 import { LoginCredentials, SignupData, User } from '../types';
+import { API_ENDPOINTS } from '../constants/api';
 
-const MOCK_USERS: Array<User & { password: string }> = [
-  {
-    id: '1',
-    email: 'demo@example.com',
-    password: 'password123',
-    name: 'Demo User',
-    avatar: undefined
-  }
-];
+const TOKEN_KEY = 'auth_token';
 
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+interface AuthResponse {
+  status: string;
+  data: {
+    token: string;
+    user: {
+      id: string;
+      email: string;
+      fullName: string;
+      phone: string;
+      photoURL?: string;
+      createdAt: string;
+      updatedAt: string;
+    };
+  };
+}
+
+async function saveToken(token: string): Promise<void> {
+  await SecureStore.setItemAsync(TOKEN_KEY, token);
+}
+
+async function getToken(): Promise<string | null> {
+  return await SecureStore.getItemAsync(TOKEN_KEY);
+}
+
+async function deleteToken(): Promise<void> {
+  await SecureStore.deleteItemAsync(TOKEN_KEY);
+}
+
+function mapBackendUserToUser(backendUser: AuthResponse['data']['user']): User {
+  return {
+    id: backendUser.id,
+    email: backendUser.email,
+    name: backendUser.fullName,
+    phone: backendUser.phone,
+    avatar: backendUser.photoURL
+  };
+}
 
 export const authService = {
-  async login(credentials: LoginCredentials): Promise<User> {
-    await delay(1000);
+  async login(credentials: LoginCredentials): Promise<{ user: User; token: string }> {
+    try {
+      const response = await fetch(API_ENDPOINTS.AUTH.LOGIN, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(credentials),
+      });
 
-    const user = MOCK_USERS.find(
-      u => u.email === credentials.email && u.password === credentials.password
-    );
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Invalid email or password');
+      }
 
-    if (!user) {
-      throw new Error('Invalid email or password');
+      const data: AuthResponse = await response.json();
+
+      await saveToken(data.data.token);
+
+      return {
+        user: mapBackendUserToUser(data.data.user),
+        token: data.data.token
+      };
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Network error. Please check your connection.');
     }
-
-    const { password, ...userData } = user;
-    return userData;
   },
 
-  async signup(data: SignupData): Promise<User> {
-    await delay(1000);
+  async signup(data: SignupData): Promise<{ user: User; token: string }> {
+    try {
+      const response = await fetch(API_ENDPOINTS.AUTH.REGISTER, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: data.email,
+          password: data.password,
+          fullName: data.name,
+          phone: data.phone || '',
+        }),
+      });
 
-    const existingUser = MOCK_USERS.find(u => u.email === data.email);
-    if (existingUser) {
-      throw new Error('Email already registered');
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Registration failed');
+      }
+
+      const responseData: AuthResponse = await response.json();
+
+      await saveToken(responseData.data.token);
+
+      return {
+        user: mapBackendUserToUser(responseData.data.user),
+        token: responseData.data.token
+      };
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Network error. Please check your connection.');
     }
-
-    const newUser = {
-      id: String(MOCK_USERS.length + 1),
-      email: data.email,
-      password: data.password,
-      name: data.name,
-      avatar: undefined
-    };
-
-    MOCK_USERS.push(newUser);
-
-    const { password, ...userData } = newUser;
-    return userData;
   },
 
   async logout(): Promise<void> {
-    await delay(500);
-    // aquí se limpiaría el token
+    await deleteToken();
   },
 
   async getCurrentUser(): Promise<User | null> {
-    // aquí se verificaría el token almacenado
-    return null;
+    try {
+      const token = await getToken();
+
+      if (!token) {
+        return null;
+      }
+
+      const response = await fetch(API_ENDPOINTS.AUTH.ME, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        await deleteToken();
+        return null;
+      }
+
+      const data = await response.json();
+
+      return mapBackendUserToUser(data.data.user);
+    } catch (error) {
+      await deleteToken();
+      return null;
+    }
+  },
+
+  async getToken(): Promise<string | null> {
+    return await getToken();
+  },
+
+  async updateProfile(updates: { photoURL?: string; fullName?: string; phone?: string }): Promise<User> {
+    try {
+      const token = await getToken();
+
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await fetch(API_ENDPOINTS.USERS.PROFILE, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updates),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to update profile');
+      }
+
+      const data = await response.json();
+      return mapBackendUserToUser(data.data.user);
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Network error. Please check your connection.');
+    }
   }
 };

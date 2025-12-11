@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { useEffect, useState, useRef } from 'react';
+import { useLanguage } from '@/contexts/LanguageContext';
 import {
   Alert,
   Image,
@@ -24,6 +25,7 @@ const MIN_ZOOM_DELTA = 0.001; // Minimum zoom
 
 export default function IncidentsMapScreen() {
   const router = useRouter();
+  const { t } = useLanguage();
   const mapRef = useRef<MapView>(null);
 
   const [adoptionPets, setAdoptionPets] = useState<Pet[]>([]);
@@ -68,12 +70,12 @@ export default function IncidentsMapScreen() {
   const sendProximityAlert = (alert: ProximityAlert) => {
     // Use Alert instead of push notifications for Expo Go compatibility
     Alert.alert(
-      '🐾 ¡Mascota perdida cerca!',
-      `${alert.pet.name} está a ${alert.distance}m de ti.\nSeñal: ${alert.signalStrength}%`,
+      t('incidentsMap.petNearby'),
+      `${alert.pet.name} ${t('incidentsMap.petNearbyMessage')} ${alert.distance}${t('incidentsMap.petNearbySignal')} ${alert.signalStrength}%`,
       [
-        { text: 'OK', style: 'default' },
+        { text: t('common.ok'), style: 'default' },
         {
-          text: 'Ver en mapa',
+          text: t('incidentsMap.viewOnMap'),
           onPress: () => {
             if (mapRef.current && alert.pet.location) {
               mapRef.current.animateToRegion({
@@ -125,7 +127,7 @@ export default function IncidentsMapScreen() {
       const { status } = await Location.requestForegroundPermissionsAsync();
 
       if (status !== 'granted') {
-        Alert.alert('Permiso denegado', 'Se necesita permiso para acceder a la ubicación');
+        Alert.alert(t('incidentsMap.permissionDenied'), t('incidentsMap.permissionMessage'));
         return;
       }
 
@@ -168,11 +170,11 @@ export default function IncidentsMapScreen() {
   const handleMarkerPress = (pet: Pet) => {
     Alert.alert(
       pet.name,
-      `${pet.status === 'lost' ? 'Perdido' : 'En adopción'}\n${pet.description}`,
+      `${pet.status === 'lost' ? t('incidentsMap.lost') : t('incidentsMap.adoption')}\n${pet.description}`,
       [
-        { text: 'Cerrar', style: 'cancel' },
+        { text: t('common.close'), style: 'cancel' },
         {
-          text: 'Ver detalles',
+          text: t('common.viewDetails'),
           onPress: () => router.push({
             pathname: '/pet-detail/[id]',
             params: { id: pet.id }
@@ -196,10 +198,10 @@ export default function IncidentsMapScreen() {
 
         <View style={styles.headerTextContainer}>
           <TextBasic variant="title" style={styles.title}>
-            Mapa de incidencias
+            {t('incidentsMap.title')}
           </TextBasic>
           <TextBasic style={styles.subtitle} color="#AAA">
-            incidencias de perdida o adopcion en el mapa
+            {t('incidentsMap.subtitle')}
           </TextBasic>
         </View>
       </View>
@@ -307,7 +309,7 @@ export default function IncidentsMapScreen() {
             <View style={styles.radarHeader}>
               <Ionicons name="radio" size={20} color="#C8E64D" />
               <TextBasic variant="subtitle" weight="semibold" style={styles.radarTitle}>
-                Mascotas perdidas cerca ({nearbyPets.length})
+                {t('incidentsMap.nearbyPets')} ({nearbyPets.length})
               </TextBasic>
             </View>
             {nearbyPets.slice(0, 3).map((alert) => (

@@ -1,60 +1,190 @@
 import { ButtonBasic } from '@/components/ButtonBasic';
 import { TextBasic } from '@/components/TextBasic';
-import { petsService } from '@/services/pets.service';
-import { Pet } from '@/types';
+import { TextAreaBasic } from '@/components/TextAreaBasic';
+import { incidentsService } from '@/services/incidents.service';
+import { commentsService, Comment } from '@/services/comments.service';
+import { Incident } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
+  Dimensions,
   Image,
+  Linking,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
   View,
-  Dimensions
+  TextInput,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker } from 'react-native-maps';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
-type TabType = 'description' | 'location';
+type TabType = 'description' | 'location' | 'comments';
 
 export default function PetDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { user } = useAuth();
+  const { t } = useLanguage();
 
-  const [pet, setPet] = useState<Pet | null>(null);
+  const [pet, setPet] = useState<Incident | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>('description');
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  // Comments state
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [isLoadingComments, setIsLoadingComments] = useState(false);
+  const [newComment, setNewComment] = useState('');
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingCommentText, setEditingCommentText] = useState('');
 
   useEffect(() => {
     loadPetDetails();
+    loadComments(); // Load comments on mount to show correct count
   }, [id]);
+
+  useEffect(() => {
+    if (activeTab === 'comments') {
+      loadComments(); // Reload when switching to comments tab
+    }
+  }, [activeTab]);
 
   const loadPetDetails = async () => {
     try {
       setIsLoading(true);
-      const petData = await petsService.getPetById(id);
+      const petData = await incidentsService.getIncidentById(id);
       setPet(petData);
     } catch (error) {
       console.error('Error loading pet details:', error);
+      Alert.alert(t('common.error'), t('petDetail.errorLoading'));
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const loadComments = async () => {
+    try {
+      setIsLoadingComments(true);
+      const result = await commentsService.getCommentsByIncident(id, 1, 20);
+      setComments(result.comments);
+    } catch (error) {
+      console.error('Error loading comments:', error);
+      Alert.alert(t('common.error'), t('comments.errorLoading'));
+    } finally {
+      setIsLoadingComments(false);
+    }
+  };
+
+  const handleSubmitComment = async () => {
+    if (!newComment.trim()) {
+      Alert.alert(t('common.error'), t('comments.emptyComment'));
+      return;
+    }
+
+    if (!user) {
+      Alert.alert(t('common.error'), t('comments.loginRequired'));
+      return;
+    }
+
+    try {
+      setIsSubmittingComment(true);
+      await commentsService.createComment(id, {
+        content: newComment.trim(),
+      });
+      setNewComment('');
+      loadComments(); // Reload comments
+      Alert.alert(t('common.success'), t('comments.commentAdded'));
+    } catch (error) {
+      console.error('Error creating comment:', error);
+      Alert.alert(t('common.error'), t('comments.errorCreating'));
+    } finally {
+      setIsSubmittingComment(false);
+    }
+  };
+
+  const handleEditComment = async (commentId: string) => {
+    if (!editingCommentText.trim()) {
+      Alert.alert(t('common.error'), t('comments.emptyCommentEdit'));
+      return;
+    }
+
+    try {
+      await commentsService.updateComment(commentId, {
+        content: editingCommentText.trim(),
+      });
+      setEditingCommentId(null);
+      setEditingCommentText('');
+      loadComments();
+      Alert.alert(t('common.success'), t('comments.commentUpdated'));
+    } catch (error) {
+      console.error('Error updating comment:', error);
+      Alert.alert(t('common.error'), t('comments.errorUpdating'));
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    Alert.alert(
+      t('comments.deleteComment'),
+      t('comments.deleteConfirm'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('common.delete'),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await commentsService.deleteComment(commentId);
+              loadComments();
+              Alert.alert(t('common.success'), t('comments.commentDeleted'));
+            } catch (error) {
+              console.error('Error deleting comment:', error);
+              Alert.alert(t('common.error'), t('comments.errorDeleting'));
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const formatCommentDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInMs = now.getTime() - date.getTime();
+    const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+
+    if (diffInMinutes < 1) return t('comments.justNow');
+    if (diffInMinutes < 60) return `${diffInMinutes}m`;
+    if (diffInHours < 24) return `${diffInHours}h`;
+    if (diffInDays < 7) return `${diffInDays}d`;
+
+    return new Intl.DateTimeFormat('es-ES', {
+      month: 'short',
+      day: 'numeric',
+    }).format(date);
   };
 
   const getStatusBadge = () => {
     if (!pet) return null;
 
     const config = {
-      lost: { text: 'Lost', color: '#FF4444' },
-      found: { text: 'Found', color: '#44FF88' },
-      adoption: { text: 'Adoption', color: '#44FF88' },
+      lost: { text: t('petDetail.lost'), color: '#FF4444' },
+      adoption: { text: t('petDetail.adoption'), color: '#44FF88' },
     };
 
-    const badge = config[pet.status];
+    const badge = config[pet.incidentType];
 
     return (
       <View style={[styles.statusBadge, { backgroundColor: badge.color }]}>
@@ -65,12 +195,32 @@ export default function PetDetailScreen() {
     );
   };
 
-  const formatDate = (date: Date) => {
+  const formatDate = (dateString: string) => {
     return new Intl.DateTimeFormat('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
-    }).format(date);
+    }).format(new Date(dateString));
+  };
+
+  const handleContact = () => {
+    if (!pet) return;
+
+    Alert.alert(
+      t('petDetail.contact'),
+      t('petDetail.chooseContact'),
+      [
+        {
+          text: t('petDetail.call'),
+          onPress: () => Linking.openURL(`tel:${pet.contactPhone}`),
+        },
+        {
+          text: t('petDetail.email'),
+          onPress: () => Linking.openURL(`mailto:${pet.contactEmail}`),
+        },
+        { text: t('common.cancel'), style: 'cancel' },
+      ]
+    );
   };
 
   if (isLoading) {
@@ -87,9 +237,9 @@ export default function PetDetailScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
-          <TextBasic>Pet not found</TextBasic>
+          <TextBasic>{t('petDetail.petNotFound')}</TextBasic>
           <ButtonBasic
-            title="Go Back"
+            title={t('petDetail.goBack')}
             onPress={() => router.back()}
             variant="primary"
           />
@@ -103,7 +253,26 @@ export default function PetDetailScreen() {
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Pet Image */}
         <View style={styles.imageContainer}>
-          <Image source={{ uri: pet.image }} style={styles.petImage} />
+          <Image
+            source={{ uri: pet.imageUrls[currentImageIndex] || pet.imageUrls[0] }}
+            style={styles.petImage}
+          />
+
+          {/* Image Navigation */}
+          {pet.imageUrls.length > 1 && (
+            <View style={styles.imageNavigation}>
+              {pet.imageUrls.map((_, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.imageDot,
+                    currentImageIndex === index && styles.imageDotActive,
+                  ]}
+                  onPress={() => setCurrentImageIndex(index)}
+                />
+              ))}
+            </View>
+          )}
 
           {/* Back Button */}
           <TouchableOpacity
@@ -122,22 +291,32 @@ export default function PetDetailScreen() {
         <View style={styles.infoContainer}>
           {/* Name */}
           <TextBasic variant="title" weight="bold" style={styles.petName}>
-            {pet.name}
+            {pet.petName}
           </TextBasic>
+
+          {/* Pet Type and Breed */}
+          <View style={styles.petTypeContainer}>
+            <TextBasic style={styles.petTypeText} color="#C8E64D">
+              {pet.petType.charAt(0).toUpperCase() + pet.petType.slice(1)}
+              {pet.breed && ` • ${pet.breed}`}
+            </TextBasic>
+          </View>
 
           {/* Contact Info */}
           <View style={styles.contactContainer}>
+            {pet.user && (
+              <TextBasic style={styles.contactText} color="#C8E64D">
+                {t('petDetail.by')} {pet.user.fullName}
+              </TextBasic>
+            )}
             <TextBasic style={styles.contactText} color="#C8E64D">
-              By {pet.reportedBy}
-            </TextBasic>
-            <TextBasic style={styles.contactText} color="#C8E64D">
-              contact : 99999999
+              {t('petDetail.contact')}: {pet.contactPhone}
             </TextBasic>
           </View>
 
           {/* Published Date */}
           <TextBasic style={styles.dateText} color="#AAA">
-            Publised {formatDate(pet.reportedAt)}
+            {t('petDetail.publishedOn')} {formatDate(pet.createdAt)}
           </TextBasic>
 
           {/* Tabs */}
@@ -157,7 +336,7 @@ export default function PetDetailScreen() {
                   activeTab === 'description' && styles.tabTextActive,
                 ]}
               >
-                Description
+                {t('petDetail.description')}
               </TextBasic>
             </TouchableOpacity>
 
@@ -176,7 +355,26 @@ export default function PetDetailScreen() {
                   activeTab === 'location' && styles.tabTextActive,
                 ]}
               >
-                Location
+                {t('petDetail.location')}
+              </TextBasic>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.tab,
+                activeTab === 'comments' && styles.tabActive,
+              ]}
+              onPress={() => setActiveTab('comments')}
+              activeOpacity={0.7}
+            >
+              <TextBasic
+                weight={activeTab === 'comments' ? 'bold' : 'regular'}
+                style={[
+                  styles.tabText,
+                  activeTab === 'comments' && styles.tabTextActive,
+                ]}
+              >
+                {t('petDetail.comments')} ({comments.length})
               </TextBasic>
             </TouchableOpacity>
           </View>
@@ -189,68 +387,212 @@ export default function PetDetailScreen() {
                   {pet.description}
                 </TextBasic>
 
-                {/* Additional Info for Adoption */}
-                {pet.status === 'adoption' && (
-                  <View style={styles.additionalInfo}>
-                    {pet.age && (
-                      <View style={styles.infoRow}>
-                        <Ionicons name="calendar" size={20} color="#C8E64D" />
-                        <TextBasic style={styles.infoLabel}>Age:</TextBasic>
-                        <TextBasic style={styles.infoValue}>{pet.age}</TextBasic>
-                      </View>
-                    )}
-                    {pet.gender && (
-                      <View style={styles.infoRow}>
-                        <Ionicons
-                          name={pet.gender === 'male' ? 'male' : 'female'}
-                          size={20}
-                          color="#C8E64D"
-                        />
-                        <TextBasic style={styles.infoLabel}>Gender:</TextBasic>
-                        <TextBasic style={styles.infoValue}>
-                          {pet.gender === 'male' ? 'Male' : 'Female'}
-                        </TextBasic>
-                      </View>
-                    )}
+                {/* Status Info */}
+                <View style={styles.additionalInfo}>
+                  <View style={styles.infoRow}>
+                    <Ionicons name="information-circle" size={20} color="#C8E64D" />
+                    <TextBasic style={styles.infoLabel}>{t('petDetail.status')}:</TextBasic>
+                    <TextBasic style={styles.infoValue}>
+                      {pet.status === 'active' ? t('petDetail.active') : pet.status === 'resolved' ? t('petDetail.resolved') : t('petDetail.closed')}
+                    </TextBasic>
                   </View>
-                )}
+                </View>
               </View>
-            ) : (
+            ) : activeTab === 'location' ? (
               <View style={styles.locationContainer}>
-                {pet.location ? (
+                {pet.location && pet.location.coordinates.length === 2 ? (
                   <>
                     <View style={styles.mapContainer}>
                       <MapView
                         style={styles.map}
                         initialRegion={{
-                          latitude: pet.location.latitude,
-                          longitude: pet.location.longitude,
+                          latitude: pet.location.coordinates[1],
+                          longitude: pet.location.coordinates[0],
                           latitudeDelta: 0.01,
                           longitudeDelta: 0.01,
                         }}
                       >
                         <Marker
                           coordinate={{
-                            latitude: pet.location.latitude,
-                            longitude: pet.location.longitude,
+                            latitude: pet.location.coordinates[1],
+                            longitude: pet.location.coordinates[0],
                           }}
-                          pinColor={pet.status === 'lost' ? '#FF4444' : '#44FF88'}
+                          pinColor={pet.incidentType === 'lost' ? '#FF4444' : '#44FF88'}
                         />
                       </MapView>
                     </View>
-                    {pet.location.address && (
-                      <View style={styles.addressContainer}>
-                        <Ionicons name="location" size={24} color="#C8E64D" />
-                        <TextBasic style={styles.addressText}>
-                          {pet.location.address}
-                        </TextBasic>
-                      </View>
+                    <View style={styles.addressContainer}>
+                      <Ionicons name="location" size={24} color="#C8E64D" />
+                      <TextBasic style={styles.addressText}>
+                        {pet.locationName}
+                      </TextBasic>
+                    </View>
+                    {pet.distance && (
+                      <TextBasic style={styles.distanceText} color="#AAA">
+                        {(pet.distance / 1000).toFixed(2)} {t('petDetail.kmAway')}
+                      </TextBasic>
                     )}
                   </>
                 ) : (
                   <TextBasic color="#AAA" style={styles.noLocationText}>
-                    Location not available
+                    {t('petDetail.noLocation')}
                   </TextBasic>
+                )}
+              </View>
+            ) : (
+              <View style={styles.commentsContainer}>
+                {/* Comments List */}
+                {isLoadingComments ? (
+                  <View style={styles.loadingCommentsContainer}>
+                    <ActivityIndicator size="small" color="#C8E64D" />
+                    <TextBasic style={styles.loadingCommentsText}>
+                      {t('comments.loading')}
+                    </TextBasic>
+                  </View>
+                ) : comments.length === 0 ? (
+                  <View style={styles.emptyCommentsContainer}>
+                    <Ionicons name="chatbubbles-outline" size={48} color="#555" />
+                    <TextBasic style={styles.emptyCommentsText} color="#AAA">
+                      {t('comments.noComments')}
+                    </TextBasic>
+                    <TextBasic style={styles.emptyCommentsSubtext} color="#666">
+                      {t('comments.beFirst')}
+                    </TextBasic>
+                  </View>
+                ) : (
+                  <View style={styles.commentsList}>
+                    {comments.map((comment) => (
+                      <View key={comment._id} style={styles.commentCard}>
+                        {/* Comment Header */}
+                        <View style={styles.commentHeader}>
+                          <View style={styles.commentUserInfo}>
+                            {comment.user.photoURL ? (
+                              <Image
+                                source={{ uri: comment.user.photoURL }}
+                                style={styles.commentAvatar}
+                              />
+                            ) : (
+                              <View style={styles.commentAvatarPlaceholder}>
+                                <Ionicons name="person" size={20} color="#C8E64D" />
+                              </View>
+                            )}
+                            <View style={styles.commentUserDetails}>
+                              <TextBasic weight="semibold" style={styles.commentUserName}>
+                                {comment.user.fullName}
+                              </TextBasic>
+                              <TextBasic style={styles.commentDate} color="#888">
+                                {formatCommentDate(comment.createdAt)}
+                                {comment.isEdited && ` (${t('comments.edited')})`}
+                              </TextBasic>
+                            </View>
+                          </View>
+
+                          {/* Action Buttons - only show for own comments */}
+                          {user && user.id === comment.userId && (
+                            <View style={styles.commentActions}>
+                              <TouchableOpacity
+                                onPress={() => {
+                                  setEditingCommentId(comment._id);
+                                  setEditingCommentText(comment.content);
+                                }}
+                                style={styles.commentActionButton}
+                              >
+                                <Ionicons name="create-outline" size={18} color="#C8E64D" />
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                onPress={() => handleDeleteComment(comment._id)}
+                                style={styles.commentActionButton}
+                              >
+                                <Ionicons name="trash-outline" size={18} color="#FF4444" />
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                        </View>
+
+                        {/* Comment Content */}
+                        {editingCommentId === comment._id ? (
+                          <View style={styles.editCommentContainer}>
+                            <TextInput
+                              style={styles.editCommentInput}
+                              value={editingCommentText}
+                              onChangeText={setEditingCommentText}
+                              multiline
+                              placeholder={t('comments.editCommentPlaceholder')}
+                              placeholderTextColor="#666"
+                            />
+                            <View style={styles.editCommentActions}>
+                              <TouchableOpacity
+                                onPress={() => {
+                                  setEditingCommentId(null);
+                                  setEditingCommentText('');
+                                }}
+                                style={styles.cancelEditButton}
+                              >
+                                <TextBasic style={styles.cancelEditText}>{t('comments.cancel')}</TextBasic>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                onPress={() => handleEditComment(comment._id)}
+                                style={styles.saveEditButton}
+                              >
+                                <TextBasic style={styles.saveEditText}>{t('comments.save')}</TextBasic>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        ) : (
+                          <TextBasic style={styles.commentContent}>
+                            {comment.content}
+                          </TextBasic>
+                        )}
+
+                        {/* Comment Images */}
+                        {comment.imageUrls && comment.imageUrls.length > 0 && (
+                          <View style={styles.commentImages}>
+                            {comment.imageUrls.map((imageUrl, index) => (
+                              <Image
+                                key={index}
+                                source={{ uri: imageUrl }}
+                                style={styles.commentImage}
+                              />
+                            ))}
+                          </View>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Add Comment Form */}
+                {user && (
+                  <View style={styles.addCommentContainer}>
+                    <TextBasic style={styles.addCommentTitle} weight="semibold">
+                      {t('comments.addCommentTitle')}
+                    </TextBasic>
+                    <View style={styles.addCommentForm}>
+                      <TextInput
+                        style={styles.commentInput}
+                        value={newComment}
+                        onChangeText={setNewComment}
+                        placeholder={t('comments.writeComment')}
+                        placeholderTextColor="#666"
+                        multiline
+                        maxLength={1000}
+                      />
+                      <TouchableOpacity
+                        style={[
+                          styles.submitCommentButton,
+                          (!newComment.trim() || isSubmittingComment) && styles.submitCommentButtonDisabled,
+                        ]}
+                        onPress={handleSubmitComment}
+                        disabled={!newComment.trim() || isSubmittingComment}
+                      >
+                        {isSubmittingComment ? (
+                          <ActivityIndicator size="small" color="#000" />
+                        ) : (
+                          <Ionicons name="send" size={20} color="#000" />
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  </View>
                 )}
               </View>
             )}
@@ -259,8 +601,8 @@ export default function PetDetailScreen() {
           {/* Contact Button */}
           <View style={styles.buttonContainer}>
             <ButtonBasic
-              title={pet.status === 'adoption' ? 'Adopt Me' : 'Contact Owner'}
-              onPress={() => console.log('Contact owner')}
+              title={pet.incidentType === 'adoption' ? t('petDetail.contactForAdoption') : t('petDetail.contactOwner')}
+              onPress={handleContact}
               variant="primary"
             />
           </View>
@@ -442,5 +784,201 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     marginTop: 32,
+  },
+  imageNavigation: {
+    position: 'absolute',
+    bottom: 50,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  imageDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  imageDotActive: {
+    backgroundColor: '#C8E64D',
+    width: 24,
+  },
+  petTypeContainer: {
+    marginBottom: 8,
+  },
+  petTypeText: {
+    fontSize: 16,
+  },
+  distanceText: {
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  // Comments styles
+  commentsContainer: {
+    gap: 20,
+  },
+  loadingCommentsContainer: {
+    paddingVertical: 40,
+    alignItems: 'center',
+    gap: 10,
+  },
+  loadingCommentsText: {
+    fontSize: 14,
+    color: '#AAA',
+  },
+  emptyCommentsContainer: {
+    paddingVertical: 60,
+    alignItems: 'center',
+    gap: 12,
+  },
+  emptyCommentsText: {
+    fontSize: 16,
+    marginTop: 12,
+  },
+  emptyCommentsSubtext: {
+    fontSize: 14,
+  },
+  commentsList: {
+    gap: 16,
+  },
+  commentCard: {
+    backgroundColor: '#1A1A1A',
+    borderRadius: 15,
+    padding: 16,
+    gap: 12,
+  },
+  commentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  commentUserInfo: {
+    flexDirection: 'row',
+    gap: 12,
+    flex: 1,
+  },
+  commentAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  commentAvatarPlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#2A2A2A',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  commentUserDetails: {
+    flex: 1,
+    gap: 4,
+  },
+  commentUserName: {
+    fontSize: 14,
+  },
+  commentDate: {
+    fontSize: 12,
+  },
+  commentActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  commentActionButton: {
+    padding: 4,
+  },
+  commentContent: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#DDD',
+  },
+  commentImages: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  commentImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+  },
+  editCommentContainer: {
+    gap: 12,
+  },
+  editCommentInput: {
+    backgroundColor: '#2A2A2A',
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 14,
+    color: '#FFF',
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  editCommentActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  cancelEditButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: '#333',
+  },
+  cancelEditText: {
+    fontSize: 14,
+    color: '#AAA',
+  },
+  saveEditButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: '#C8E64D',
+  },
+  saveEditText: {
+    fontSize: 14,
+    color: '#000',
+    fontWeight: '600',
+  },
+  addCommentContainer: {
+    marginTop: 20,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#333',
+    gap: 12,
+  },
+  addCommentTitle: {
+    fontSize: 16,
+  },
+  addCommentForm: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'flex-end',
+  },
+  commentInput: {
+    flex: 1,
+    backgroundColor: '#1A1A1A',
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 14,
+    color: '#FFF',
+    minHeight: 60,
+    maxHeight: 120,
+    textAlignVertical: 'top',
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  submitCommentButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#C8E64D',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  submitCommentButtonDisabled: {
+    backgroundColor: '#555',
+    opacity: 0.5,
   },
 });

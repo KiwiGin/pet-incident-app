@@ -1,24 +1,29 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   View,
   StyleSheet,
   ActivityIndicator,
   FlatList,
-  Alert
+  Alert,
+  TouchableOpacity
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { TextBasic } from '@/components/TextBasic';
 import { SelectorBasic } from '@/components/SelectorBasic';
 import { PetCardComponent } from '@/components/PetCardComponent';
-import { petsService } from '@/services/pets.service';
+import { incidentsService, Incident } from '@/services/incidents.service';
 import { useAuth } from '@/contexts/AuthContext';
-import { Pet } from '@/types';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 type IncidentType = 'all' | 'lost' | 'adoption';
 
 export default function MyIncidentsScreen() {
   const { user } = useAuth();
-  const [pets, setPets] = useState<Pet[]>([]);
+  const { t } = useLanguage();
+  const router = useRouter();
+  const [incidents, setIncidents] = useState<Incident[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedType, setSelectedType] = useState<IncidentType>('all');
 
@@ -28,30 +33,80 @@ export default function MyIncidentsScreen() {
     }
   }, [user, selectedType]);
 
+  // Refresh when screen comes into focus (e.g., after editing or deleting)
+  useFocusEffect(
+    useCallback(() => {
+      if (user) {
+        loadIncidents();
+      }
+    }, [user, selectedType])
+  );
+
   const loadIncidents = async () => {
     if (!user) return;
 
     try {
       setIsLoading(true);
-      const type = selectedType === 'all' ? undefined : selectedType;
-      const incidents = await petsService.getUserIncidents(user.id, type);
-      setPets(incidents);
+      const result = await incidentsService.getMyIncidents({
+        status: 'active',
+        page: 1,
+        limit: 50,
+      });
+
+      // Filter by type if not 'all'
+      let filteredIncidents = result.incidents;
+      if (selectedType !== 'all') {
+        filteredIncidents = result.incidents.filter(
+          (incident) => incident.incidentType === selectedType
+        );
+      }
+
+      setIncidents(filteredIncidents);
     } catch (error) {
       console.error('Error loading incidents:', error);
+      Alert.alert(t('common.error'), t('myIncidents.errorLoading'));
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleDelete = (id: string, petName: string) => {
+    Alert.alert(
+      t('myIncidents.deleteConfirm'),
+      `${t('myIncidents.deleteMessage')} ${petName}?`,
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('myIncidents.delete'),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await incidentsService.deleteIncident(id);
+              Alert.alert(t('common.success'), t('myIncidents.deleted'));
+              loadIncidents();
+            } catch (error) {
+              console.error('Error deleting incident:', error);
+              Alert.alert(t('common.error'), t('myIncidents.errorDeleting'));
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleEdit = (id: string) => {
+    router.push(`/edit-incident/${id}` as any);
+  };
+
   const handleSelectorPress = () => {
     Alert.alert(
-      'Tipo de incidencia',
-      'Seleccione el tipo de incidencia',
+      t('myIncidents.selectType'),
+      t('myIncidents.selectTypeMessage'),
       [
-        { text: 'Todas', onPress: () => setSelectedType('all') },
-        { text: 'Pérdidas', onPress: () => setSelectedType('lost') },
-        { text: 'Adopciones', onPress: () => setSelectedType('adoption') },
-        { text: 'Cancelar', style: 'cancel' }
+        { text: t('myIncidents.all'), onPress: () => setSelectedType('all') },
+        { text: t('myIncidents.lost'), onPress: () => setSelectedType('lost') },
+        { text: t('myIncidents.adoption'), onPress: () => setSelectedType('adoption') },
+        { text: t('common.cancel'), style: 'cancel' }
       ]
     );
   };
@@ -59,13 +114,13 @@ export default function MyIncidentsScreen() {
   const getSelectorText = () => {
     switch (selectedType) {
       case 'all':
-        return 'Tipo de incidencia';
+        return t('myIncidents.selectType');
       case 'lost':
-        return 'Pérdidas';
+        return t('myIncidents.lost');
       case 'adoption':
-        return 'Adopciones';
+        return t('myIncidents.adoption');
       default:
-        return 'Tipo de incidencia';
+        return t('myIncidents.selectType');
     }
   };
 
@@ -73,9 +128,9 @@ export default function MyIncidentsScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.emptyContainer}>
-          <TextBasic variant="title">Mis incidencias</TextBasic>
+          <TextBasic variant="title">{t('myIncidents.title')}</TextBasic>
           <TextBasic style={styles.emptyText}>
-            Inicia sesión para ver tus incidencias
+            {t('myIncidents.loginPrompt')}
           </TextBasic>
         </View>
       </SafeAreaView>
@@ -86,10 +141,10 @@ export default function MyIncidentsScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TextBasic variant="title" style={styles.title}>
-          Mis incidencias
+          {t('myIncidents.title')}
         </TextBasic>
         <TextBasic style={styles.subtitle} color="#AAA">
-          Vea sus incidencias de perdidas o adopciones
+          {t('incidents.viewIncidents')}
         </TextBasic>
 
         <SelectorBasic
@@ -102,21 +157,40 @@ export default function MyIncidentsScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#C8E64D" />
         </View>
-      ) : pets.length === 0 ? (
+      ) : incidents.length === 0 ? (
         <View style={styles.emptyContainer}>
           <TextBasic style={styles.emptyText}>
-            No tienes incidencias registradas
+            {t('myIncidents.noIncidents')}
           </TextBasic>
         </View>
       ) : (
         <FlatList
-          data={pets}
-          keyExtractor={(item) => item.id}
+          data={incidents}
+          keyExtractor={(item) => item._id}
           renderItem={({ item }) => (
-            <PetCardComponent
-              pet={item}
-              showFavorite={false}
-            />
+            <View style={styles.cardContainer}>
+              <PetCardComponent
+                pet={item}
+                showFavorite={false}
+                onPress={() => handleEdit(item._id)}
+              />
+              <View style={styles.actionButtons}>
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.editButton]}
+                  onPress={() => handleEdit(item._id)}
+                >
+                  <Ionicons name="create-outline" size={20} color="#FFF" />
+                  <TextBasic style={styles.actionButtonText}>{t('myIncidents.edit')}</TextBasic>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.deleteButton]}
+                  onPress={() => handleDelete(item._id, item.petName)}
+                >
+                  <Ionicons name="trash-outline" size={20} color="#FFF" />
+                  <TextBasic style={styles.actionButtonText}>{t('myIncidents.delete')}</TextBasic>
+                </TouchableOpacity>
+              </View>
+            </View>
           )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
@@ -163,5 +237,34 @@ const styles = StyleSheet.create({
     marginTop: 20,
     textAlign: 'center',
     color: '#888',
-  }
+  },
+  cardContainer: {
+    marginBottom: 15,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    gap: 8,
+  },
+  editButton: {
+    backgroundColor: '#4A90E2',
+  },
+  deleteButton: {
+    backgroundColor: '#E74C3C',
+  },
+  actionButtonText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
 });

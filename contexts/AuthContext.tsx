@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { AuthContextType, User, LoginCredentials, SignupData } from '../types';
 import { authService } from '../services/auth.service';
-import { AuthContextType, LoginCredentials, SignupData, User } from '../types';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -27,8 +27,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (credentials: LoginCredentials) => {
     setIsLoading(true);
     try {
-      const userData = await authService.login(credentials);
-      setUser(userData);
+      const { user } = await authService.login(credentials);
+      setUser(user);
     } catch (error) {
       throw error;
     } finally {
@@ -39,8 +39,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signup = async (data: SignupData) => {
     setIsLoading(true);
     try {
-      const userData = await authService.signup(data);
-      setUser(userData);
+      const { user } = await authService.signup(data);
+      setUser(user);
     } catch (error) {
       throw error;
     } finally {
@@ -60,8 +60,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateUserProfile = async (updates: Partial<User>) => {
+    try {
+      // Map User fields to backend fields
+      const backendUpdates: { photoURL?: string; fullName?: string; phone?: string } = {};
+
+      if (updates.avatar !== undefined) {
+        backendUpdates.photoURL = updates.avatar;
+      }
+      if (updates.name !== undefined) {
+        backendUpdates.fullName = updates.name;
+      }
+      if (updates.phone !== undefined) {
+        backendUpdates.phone = updates.phone;
+      }
+
+      const updatedUser = await authService.updateProfile(backendUpdates);
+      setUser(updatedUser);
+    } catch (error) {
+      throw error;
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, signup, logout, updateUserProfile }}>
       {children}
     </AuthContext.Provider>
   );
