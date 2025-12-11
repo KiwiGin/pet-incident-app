@@ -249,6 +249,8 @@ export default function HomeScreen() {
               value={searchQuery}
               onChangeText={handleSearch}
               placeholder={t('home.searchPlaceholder')}
+              accessibilityLabel={t('accessibility.searchInput')}
+              accessibilityHint={t('accessibility.searchInputHint')}
             />
           </View>
 
@@ -257,12 +259,18 @@ export default function HomeScreen() {
             onPress={handleNearMe}
             variant="primary"
             style={styles.nearMeButton}
+            accessibilityLabel={t('accessibility.nearMeButton')}
+            accessibilityHint={t('accessibility.nearMeButtonHint')}
           />
         </View>
       </View>
 
       {isLoading ? (
-        <View style={styles.loadingContainer}>
+        <View
+          style={styles.loadingContainer}
+          accessible={true}
+          accessibilityLabel={t('accessibility.loading')}
+        >
           <ActivityIndicator size="large" color="#C8E64D" />
         </View>
       ) : (
@@ -276,7 +284,11 @@ export default function HomeScreen() {
           onEndReachedThreshold={0.5}
           ListFooterComponent={
             isLoadingMore ? (
-              <View style={styles.footerLoader}>
+              <View
+                style={styles.footerLoader}
+                accessible={true}
+                accessibilityLabel={t('common.loadingMore')}
+              >
                 <ActivityIndicator size="small" color="#C8E64D" />
                 <TextBasic style={styles.loadingText}>{t('common.loadingMore')}</TextBasic>
               </View>
@@ -313,6 +325,10 @@ export default function HomeScreen() {
               style={styles.fabOptionButton}
               onPress={handleLocationPress}
               activeOpacity={0.8}
+              accessible={true}
+              accessibilityRole="button"
+              accessibilityLabel={t('accessibility.mapButton')}
+              accessibilityHint={t('accessibility.mapButtonHint')}
             >
               <Ionicons name="location" size={24} color="#000" />
             </TouchableOpacity>
@@ -336,6 +352,10 @@ export default function HomeScreen() {
               style={styles.fabOptionButton}
               onPress={handleReportPress}
               activeOpacity={0.8}
+              accessible={true}
+              accessibilityRole="button"
+              accessibilityLabel={t('incidents.create')}
+              accessibilityHint={t('accessibility.submitButtonHint')}
             >
               <Ionicons name="paw" size={24} color="#000" />
             </TouchableOpacity>
@@ -348,6 +368,10 @@ export default function HomeScreen() {
             style={styles.fabButton}
             onPress={toggleFab}
             activeOpacity={0.8}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel={isFabOpen ? t('common.close') : t('incidents.create')}
+            accessibilityHint={isFabOpen ? t('accessibility.cancelButtonHint') : t('accessibility.submitButtonHint')}
           >
             <Ionicons name="add" size={32} color="#000" />
           </TouchableOpacity>

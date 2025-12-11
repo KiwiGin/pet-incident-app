@@ -9,6 +9,8 @@ interface ButtonBasicProps {
   disabled?: boolean;
   loading?: boolean;
   style?: ViewStyle;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
 }
 
 export function ButtonBasic({
@@ -17,7 +19,9 @@ export function ButtonBasic({
   variant = 'primary',
   disabled = false,
   loading = false,
-  style
+  style,
+  accessibilityLabel,
+  accessibilityHint
 }: ButtonBasicProps) {
   const getButtonStyle = () => {
     switch (variant) {
@@ -56,6 +60,11 @@ export function ButtonBasic({
       onPress={onPress}
       disabled={disabled || loading}
       activeOpacity={0.8}
+      accessible={true}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel || title}
+      accessibilityHint={accessibilityHint}
+      accessibilityState={{ disabled: disabled || loading }}
     >
       {loading ? (
         <ActivityIndicator color={getTextColor()} />
