@@ -154,7 +154,11 @@ export default function MyIncidentsScreen() {
       </View>
 
       {isLoading ? (
-        <View style={styles.loadingContainer}>
+        <View
+          style={styles.loadingContainer}
+          accessible={true}
+          accessibilityLabel={t('accessibility.loading')}
+        >
           <ActivityIndicator size="large" color="#C8E64D" />
         </View>
       ) : incidents.length === 0 ? (
@@ -178,6 +182,10 @@ export default function MyIncidentsScreen() {
                 <TouchableOpacity
                   style={[styles.actionButton, styles.editButton]}
                   onPress={() => handleEdit(item._id)}
+                  accessible={true}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${t('accessibility.editButton')}, ${item.petName}`}
+                  accessibilityHint={t('accessibility.editButtonHint')}
                 >
                   <Ionicons name="create-outline" size={20} color="#FFF" />
                   <TextBasic style={styles.actionButtonText}>{t('myIncidents.edit')}</TextBasic>
@@ -185,6 +193,10 @@ export default function MyIncidentsScreen() {
                 <TouchableOpacity
                   style={[styles.actionButton, styles.deleteButton]}
                   onPress={() => handleDelete(item._id, item.petName)}
+                  accessible={true}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${t('accessibility.deleteButton')}, ${item.petName}`}
+                  accessibilityHint={t('accessibility.deleteButtonHint')}
                 >
                   <Ionicons name="trash-outline" size={20} color="#FFF" />
                   <TextBasic style={styles.actionButtonText}>{t('myIncidents.delete')}</TextBasic>

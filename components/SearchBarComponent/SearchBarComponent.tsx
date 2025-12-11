@@ -1,18 +1,25 @@
 import React from 'react';
 import { View, TextInput, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface SearchBarComponentProps {
   value: string;
   onChangeText: (text: string) => void;
   placeholder?: string;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
 }
 
 export function SearchBarComponent({
   value,
   onChangeText,
-  placeholder = 'Buscar'
+  placeholder = 'Buscar',
+  accessibilityLabel,
+  accessibilityHint
 }: SearchBarComponentProps) {
+  const { t } = useLanguage();
+
   return (
     <View style={styles.container}>
       <TextInput
@@ -22,6 +29,10 @@ export function SearchBarComponent({
         value={value}
         onChangeText={onChangeText}
         autoCapitalize="none"
+        accessible={true}
+        accessibilityLabel={accessibilityLabel || t('accessibility.searchInput')}
+        accessibilityHint={accessibilityHint || t('accessibility.searchInputHint')}
+        accessibilityRole="search"
       />
       <Ionicons name="paw" size={20} color="#C8E64D" style={styles.icon} />
     </View>

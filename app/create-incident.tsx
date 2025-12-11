@@ -240,6 +240,10 @@ export default function CreateIncidentScreen() {
             style={styles.backButton}
             onPress={() => router.back()}
             activeOpacity={0.7}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel={t('accessibility.backButton')}
+            accessibilityHint={t('accessibility.backButtonHint')}
           >
             <Ionicons name="chevron-back" size={24} color="#FFF" />
           </TouchableOpacity>
@@ -266,9 +270,19 @@ export default function CreateIncidentScreen() {
             style={styles.cameraButton}
             onPress={handleImagePicker}
             activeOpacity={0.8}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel={t('accessibility.imageButton')}
+            accessibilityHint={t('accessibility.imageButtonHint')}
           >
             {imageUris.length > 0 ? (
-              <Image source={{ uri: imageUris[0] }} style={styles.cameraImage} />
+              <Image
+                source={{ uri: imageUris[0] }}
+                style={styles.cameraImage}
+                accessible={true}
+                accessibilityLabel={t('accessibility.petImage')}
+                accessibilityRole="image"
+              />
             ) : (
               <Ionicons name="camera" size={40} color="#C8E64D" />
             )}
@@ -285,6 +299,10 @@ export default function CreateIncidentScreen() {
                   <TouchableOpacity
                     style={styles.removeImageButton}
                     onPress={() => handleRemoveImage(index)}
+                    accessible={true}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('accessibility.removeImageButton')}
+                    accessibilityHint={t('accessibility.removeImageButtonHint')}
                   >
                     <Ionicons name="close-circle" size={24} color="#FF4444" />
                   </TouchableOpacity>
@@ -294,6 +312,10 @@ export default function CreateIncidentScreen() {
                 <TouchableOpacity
                   style={styles.addMoreButton}
                   onPress={handleImagePicker}
+                  accessible={true}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('incidents.addPhoto')}
+                  accessibilityHint={t('accessibility.imageButtonHint')}
                 >
                   <Ionicons name="add" size={30} color="#C8E64D" />
                 </TouchableOpacity>
@@ -308,6 +330,7 @@ export default function CreateIncidentScreen() {
             placeholder={t('incidents.petName')}
             value={petName}
             onChangeText={setPetName}
+            accessibilityLabel={t('incidents.petName')}
           />
 
           <SelectorBasic
@@ -319,6 +342,7 @@ export default function CreateIncidentScreen() {
             placeholder={t('incidents.breed')}
             value={breed}
             onChangeText={setBreed}
+            accessibilityLabel={t('incidents.breed')}
           />
 
           <TextAreaBasic
@@ -332,6 +356,10 @@ export default function CreateIncidentScreen() {
             style={styles.locationButton}
             onPress={handleLocationPicker}
             activeOpacity={0.8}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel={`${t('incidents.location')}: ${selectedLocation?.address || t('incidents.selectLocationMap')}`}
+            accessibilityHint={t('accessibility.mapButtonHint')}
           >
             <TextBasic style={styles.locationText}>
               {selectedLocation?.address || t('incidents.selectLocationMap')}
@@ -348,6 +376,7 @@ export default function CreateIncidentScreen() {
             value={contactPhone}
             onChangeText={setContactPhone}
             keyboardType="phone-pad"
+            accessibilityLabel={t('incidents.contactPhone')}
           />
 
           <InputBasic
@@ -356,6 +385,7 @@ export default function CreateIncidentScreen() {
             onChangeText={setContactEmail}
             keyboardType="email-address"
             autoCapitalize="none"
+            accessibilityLabel={t('incidents.contactEmail')}
           />
 
           <ButtonBasic
@@ -364,10 +394,16 @@ export default function CreateIncidentScreen() {
             variant="primary"
             style={styles.createButton}
             disabled={isSubmitting}
+            accessibilityLabel={t('accessibility.submitButton')}
+            accessibilityHint={t('accessibility.submitButtonHint')}
           />
 
           {isSubmitting && (
-            <View style={styles.loadingContainer}>
+            <View
+              style={styles.loadingContainer}
+              accessible={true}
+              accessibilityLabel={t('incidents.uploadingImages')}
+            >
               <ActivityIndicator size="large" color="#C8E64D" />
               <TextBasic style={styles.loadingText}>
                 {t('incidents.uploadingImages')}

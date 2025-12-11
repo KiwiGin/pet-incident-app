@@ -7,6 +7,8 @@ interface InputBasicProps extends TextInputProps {
   secureTextEntry?: boolean;
   value: string;
   onChangeText: (text: string) => void;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
 }
 
 export function InputBasic({
@@ -14,6 +16,8 @@ export function InputBasic({
   secureTextEntry,
   value,
   onChangeText,
+  accessibilityLabel,
+  accessibilityHint,
   ...props
 }: InputBasicProps) {
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
@@ -31,12 +35,19 @@ export function InputBasic({
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
         autoCapitalize="none"
+        accessible={true}
+        accessibilityLabel={accessibilityLabel || placeholder}
+        accessibilityHint={accessibilityHint}
         {...props}
       />
       {secureTextEntry && (
         <TouchableOpacity
           style={styles.eyeIcon}
           onPress={() => setIsPasswordVisible(!isPasswordVisible)}
+          accessible={true}
+          accessibilityRole="button"
+          accessibilityLabel={isPasswordVisible ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+          accessibilityHint="Toca dos veces para cambiar la visibilidad de la contraseña"
         >
           <Ionicons
             name={isPasswordVisible ? 'eye-off' : 'eye'}

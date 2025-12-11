@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { TextBasic } from '../TextBasic';
 import { Pet, Incident } from '../../types';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface PetCardComponentProps {
   pet: Pet | Incident;
@@ -17,6 +18,7 @@ function PetCardComponentBase({
   pet,
   onPress
 }: PetCardComponentProps) {
+  const { t } = useLanguage();
   const petName = isIncident(pet) ? pet.petName : pet.name;
   const petImage = isIncident(pet) ? pet.imageUrls[0] : pet.image;
   const petDescription = pet.description;
@@ -36,10 +38,17 @@ function PetCardComponentBase({
       style={styles.container}
       onPress={onPress}
       activeOpacity={0.7}
+      accessible={true}
+      accessibilityRole="button"
+      accessibilityLabel={`${t('accessibility.petCard')}, ${petName}, ${getSubtitle()}`}
+      accessibilityHint={t('accessibility.petCardHint')}
     >
       <Image
         source={{ uri: petImage }}
         style={styles.image}
+        accessible={true}
+        accessibilityLabel={`${t('accessibility.petImage')}, ${petName}`}
+        accessibilityRole="image"
       />
 
       <View style={styles.content}>
