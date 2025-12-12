@@ -1,3 +1,11 @@
+# Grupo 1
+### Integrantes:
+- Bayes Enriquez, Eva María Florisa
+- Castillo Reupo, John Luis Alberto
+- Sernaque Cobeñas, José Manuel
+- Rivera Llancari, Aldair Alejandro
+- Torres Tineo Cristhian Anthony
+
 # Pet Incident App
 
 App de gestión de incidentes de mascotas construida con React Native, Expo y TypeScript.
